@@ -10,6 +10,7 @@ import os
 from cffi import FFI
 
 ##########################################################################################
+# Location of shared library file
 ##########################################################################################
 rrtmgp_lib="/home/dswales/Projects/radiation-nn/rrtmgp-nn-training/rte-rrtmgp/build/mo_gas_optics_kernels.so"
 
