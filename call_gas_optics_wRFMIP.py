@@ -1,39 +1,32 @@
-###############################################################################################
+##########################################################################################
 #! /usr/bin/env python
 #
 # This script reads in the RFMIP data and calls the RRTMGP gas-optics kernels.
 #
-###############################################################################################
+##########################################################################################
 import sys
 import os
 import urllib.request
-import netCDF4
 import numpy as np
-import argparse
 import mo_gas_optics_kernels
 from cffi import FFI
+from load_kdist import load_kdist
 
-# Location of shared library file
-rrtmgp_lib="/home/dswales/Projects/radiation-nn/rrtmgp-nn-training/rte-rrtmgp/build/mo_gas_optics_kernels.so"
 
-# Open mo_gas_optics_kernels
-ffi = mo_gas_optics_kernels.init()
-lib = ffi.dlopen(rrtmgp_lib)
+##########################################################################################
+##########################################################################################
+# Which gases to use?
+gases           = ["h2o","co2","o3","n2o","ch4","o2"]
 
-# Download RFMIP profiles
+# Location of rte-rrtmgp 
 rte_rrtmgp_dir = "/home/dswales/Projects/radiation-nn/rrtmgp-nn-training/rte-rrtmgp/"
-rfmip_dir      = os.path.join(rte_rrtmgp_dir, "examples", "rfmip-clear-sky")
-conds_file     = "multiple_input4MIPs_radiation_RFMIP_UColorado-RFMIP-1-2_none.nc"
-conds_url      = "http://aims3.llnl.gov/thredds/fileServer/user_pub_work/input4MIPs/CMIP6/RFMIP/UColorado/UColorado-RFMIP-1-2/" + \
-                 "atmos/fx/multiple/none/v20190401/" + conds_file
-print("Downloading RFMIP input file: "+conds_file)
-urllib.request.urlretrieve(conds_url, conds_file)
+file_kdistLW   = rte_rrtmgp_dir + "rrtmgp/data/rrtmgp-data-lw-g256-2018-12-04.nc"
+file_kdistSW   = rte_rrtmgp_dir + "rrtmgp/data/rrtmgp-data-sw-g224-2018-12-04.nc"
 
-# Read in data
+# Open mo_gas_optics_init library
+ffi = FFI()
 
-# Read in k-distribution data
-
-# Call zero array
-# Call Interpolation
-# Call compute_tau_absorption
-# Call Combine and reorder
+# Load k-distribution files
+print_info = True
+kdistLW = load_kdist(ffi, file_kdistLW, gases, print_info)
+kdistSW = load_kdist(ffi, file_kdistSW, gases, print_info)
