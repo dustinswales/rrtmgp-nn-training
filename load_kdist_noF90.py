@@ -4,14 +4,15 @@
 ##########################################################################################
 import sys
 import os
-import urllib.request
 import numpy as np
 import xarray as xr
 
 ##########################################################################################
-def string_loc_in_array(strlen,str2find,strarray,nstr):
-	for istr in range(0,nstr):
-		if (str(strarray[istr]).ljust(strlen,' ') == str2find.decode()):
+##########################################################################################
+def string_loc_in_array(str2find, strarray):
+	for istr in range(0,len(strarray)):
+		# Force string-array into target string length. 
+		if (str(strarray[istr]).ljust(len(str2find),' ') == str2find):
 			strindex = istr
 			break
 		else:
@@ -19,33 +20,93 @@ def string_loc_in_array(strlen,str2find,strarray,nstr):
 	return strindex
 
 ##########################################################################################
-def create_idx_minor(strlen, nminorabs_red, minor_gases_red, ngas_req, requested_gases,  \
-	identifier_minor, gas_minor):
+##########################################################################################
+def create_idx_minor(nminorabs_red, minor_gases_red, ngas_req, requested_gases,  \
+	identifier_minor, nidentifier_minor, gas_minor):
 	idx_minor = np.zeros(nminorabs_red,dtype=int) - 1
 	for iminorgas in range(0,nminorabs_red):
 		idx_mnr = -1
-		if (minor_gases_red[0][iminorgas] in identifier_minor.values):
-			idx_mnr = np.where(minor_gases_red[0][iminorgas] == identifier_minor.values)[0][0]
-			idx_minor[iminorgas] = string_loc_in_array(strlen, gas_minor.values[idx_mnr],\
-				requested_gases.values, ngas_req)
+		if (minor_gases_red[iminorgas] in identifier_minor):
+			idx_mnr = string_loc_in_array(minor_gases_red[iminorgas], identifier_minor)
+			idx_minor[iminorgas] = string_loc_in_array(gas_minor[idx_mnr],requested_gases)
 	return idx_minor
 	
 ##########################################################################################
-def create_idx_minor_scaling(strlen, nminorabs_red, scaling_gas_red, ngas_req, requested_gases):
+##########################################################################################
+def create_idx_minor_scaling(nminorabs_red, scaling_gas_red, ngas_req, requested_gases):
 	idx_minor_scaling = np.zeros(nminorabs_red,dtype=int) - 1
 	for iminorgas in range(0,nminorabs_red):
-		idx_minor_scaling[iminorgas] = string_loc_in_array(strlen,                       \
-			scaling_gas_red[0][iminorgas], requested_gases.values, ngas_req )
+		idx_minor_scaling[iminorgas] = string_loc_in_array(scaling_gas_red[iminorgas],   \
+			requested_gases )
 	return idx_minor_scaling
 	
 ##########################################################################################
 ##########################################################################################
+def reduce_minor(nminorabs, nminorabs_red, ncont_red, ntemp, nmixfrac, gas_is_present,   \
+	minor_gases_atm, scaling_gas_atm, minor_scales_with_density_atm,                     \
+	scale_by_complement_atm, kminor_start_atm, minor_limits_gpt_atm, kminor_atm):
+	
+	minor_gases_atm_red               = []
+	scaling_gas_atm_red               = []
+	minor_scales_with_density_atm_red = []
+	scale_by_complement_atm_red       = []
+	for igas in range(0,nminorabs):
+		if (gas_is_present[igas]):
+			minor_gases_atm_red.append(minor_gases_atm[igas])
+			scaling_gas_atm_red.append(scaling_gas_atm[igas])
+			minor_scales_with_density_atm_red.append(minor_scales_with_density_atm[igas])
+			scale_by_complement_atm_red.append(scale_by_complement_atm[igas])
+	if (nminorabs_red == nminorabs):
+		kminor_start_atm_red     = kminor_start_atm
+		minor_limits_gpt_atm_red = minor_limits_gpt_atm
+		kminor_atm_red           = kminor_atm
+	else:
+		kminor_start_atm_red     = np.zeros(nminorabs_red,              dtype=int)
+		minor_limits_gpt_atm_red = np.zeros((nminorabs_red, 2),         dtype=int)
+		kminor_atm_red           = np.zeros((ntemp,nmixfrac,ncont_red), dtype=float)
+		icnt   = -1
+		n_elim = 0
+		for x in range(0, nminorabs):
+			ng = minor_limits_gpt_atm[x,1] - minor_limits_gpt_atm[x,0] + 1
+			if (gas_is_present[x]):
+				icnt = icnt + 1
+				minor_limits_gpt_atm_red[icnt,:]= minor_limits_gpt_atm[x,:]
+				kminor_start_atm_red[icnt]      = kminor_start_atm[x] - n_elim
+				for ij in range(0,ng):
+					kminor_atm_red[:,:,kminor_start_atm_red[icnt]+ij-1] = \
+						kminor_atm[:,:,kminor_start_atm[x]+ij-1]
+			else:
+				n_elim = n_elim + ng
+	return [minor_gases_atm_red, scaling_gas_atm_red, minor_scales_with_density_atm_red, \
+		    scale_by_complement_atm_red, kminor_start_atm_red, minor_limits_gpt_atm_red, \
+			kminor_atm_red];
+
+##########################################################################################
+##########################################################################################	
+def search_for_gases(ngas1, gas1, ngas2, gas2, limits_gpt = None):
+	ncontatm_red      = 0
+	nminorabsatm_red  = 0
+	gas_is_present    = np.empty([ngas1],dtype=bool)
+	gas_is_present[:] = False
+	count             = 0
+	for igas1 in range(0,ngas1):
+		for igas2 in range(0,ngas2):
+			if gas2[igas2] in gas1[igas1]:
+				gas_is_present[igas1] = True
+				count = count + 1
+				if (np.any(limits_gpt)):
+					ncontatm_red       = ncontatm_red + (limits_gpt[igas1,1]-limits_gpt[igas1,0]+1)
+					nminorabsatm_red   = nminorabsatm_red + 1
+				break
+			if (count == ngas2): break
+	return [ncontatm_red, nminorabsatm_red, gas_is_present];
+
+##########################################################################################
+##########################################################################################
 def load_kdist_noF90(ffi, file_kdist, gases, print_info, output_ctypes):
 
-		requested_gases = xr.DataArray(gases, dims=["ngas_req"])
-
 		# Load k-distribution data
-		kdist = xr.open_dataset(file_kdist,concat_characters=True,decode_cf=True)
+		kdist = xr.open_dataset(file_kdist,concat_characters=True,decode_cf=True)		
 
 		# Longwave or Shortwave file?
 		kdist_keys = list(kdist.keys())
@@ -53,8 +114,7 @@ def load_kdist_noF90(ffi, file_kdist, gases, print_info, output_ctypes):
 		doSW = 'rayl_lower'     in list(kdist.keys())
 
 		# Dimensions (flat)
-		strlen              = 32
-		ngas_req            = len(requested_gases)
+		ngas_req            = len(gases)
 		nmixfrac            = kdist.mixing_fraction.size
 		ncontlower          = kdist.contributors_lower.size
 		ncontupper          = kdist.contributors_upper.size
@@ -105,7 +165,6 @@ def load_kdist_noF90(ffi, file_kdist, gases, print_info, output_ctypes):
 			print("#################################################################################")
 			print("Dimensions (IN/full): ")
 			print("   ngas_req                     = ",ngas_req)
-			print("   strlen                       = ",strlen)
 			print("   ntemp                        = ",ntemp)
 			print("   nmixfrac                     = ",nmixfrac)
 			print("   npressref                    = ",npressref)
@@ -144,50 +203,56 @@ def load_kdist_noF90(ffi, file_kdist, gases, print_info, output_ctypes):
 		
 		##################################################################################
 		#
-		# Using the "requested_gases", reduce k-distribution data to only the gases needed...
+		# Using the "requested_gases", reduce k-distribution data to only the gases needed
 		#
 		##################################################################################
-		
+
+		# Local string arrays (Xarray strings are encoded, decoded below, only used by Py)
+		requested_gases   = []
+		gas_names         = []
+		gas_minor         = []
+		identifier_minor  = []
+		minor_gases_lower = []
+		scaling_gas_lower = []
+		minor_gases_upper = []
+		scaling_gas_upper = []
+		for igas in range(0,ngas_req):
+			requested_gases.append(gases[igas])
+		for igas in range(0,nmajorabs):
+			gas_names.append(kdist.gas_names.values[igas].decode())
+		for igas in range(0,nminorabs):
+			gas_minor.append(kdist.gas_minor.values[igas].decode())
+			identifier_minor.append(kdist.identifier_minor.values[igas].decode())
+		for igas in range(0,nminorabslower):
+			minor_gases_lower.append(kdist.minor_gases_lower.values[igas].decode())
+			scaling_gas_lower.append(kdist.scaling_gas_lower.values[igas].decode())
+		for igas in range(0,nminorabsupper): 
+			minor_gases_upper.append(kdist.minor_gases_upper.values[igas].decode())
+			scaling_gas_upper.append(kdist.scaling_gas_upper.values[igas].decode())
+
 		#
 		# Which major absorbing gases to include?
 		#
-		gas_is_present_major = np.zeros((nmajorabs,), dtype=int)
-		count = 0
-		for im in range(0,nmajorabs):
-			for igas in range(0,ngas_req):
-				if requested_gases.values[igas] in (kdist.gas_names.values[im]).decode("utf-8"):
-					gas_is_present_major[im] = 1
-					count = count + 1
-					break
-				if (count == ngas_req): break
+		majorgas = search_for_gases(nmajorabs, gas_names, ngas_req, requested_gases)
+		gas_is_present_major = majorgas[2]				
+				
 		#
 		# Which minor absorbing gases, in lower reference atmosphere, to include?
 		#
-		ncontlower_red       = 0
-		nminorabslower_red   = 0
-		gas_is_present_lower = np.zeros((nminorabslower,), dtype=int)
-		for im in range(0,nminorabslower):
-			for igas in range(0,ngas_req):
-				if requested_gases.values[igas] in (kdist.minor_gases_lower.values[im]).decode("utf-8"):
-					ncontlower_red   = ncontlower_red   + \
-						(kdist.minor_limits_gpt_lower.values[im,1]-kdist.minor_limits_gpt_lower.values[im,0]+1)
-					nminorabslower_red = nminorabslower_red + 1
-					gas_is_present_lower[im] = 1
-					break
+		minorgas_lower = search_for_gases(nminorabslower, minor_gases_lower, ngas_req,   \
+			requested_gases, limits_gpt = kdist.minor_limits_gpt_lower.values)
+		ncontlower_red       = minorgas_lower[0]
+		nminorabslower_red   = minorgas_lower[1]
+		gas_is_present_lower = minorgas_lower[2]
+
 		#
 		# Which minor absorbing gases, in upper reference atmosphere, to include?
 		#
-		ncontupper_red       = 0
-		nminorabsupper_red   =  0
-		gas_is_present_upper = np.zeros((nminorabsupper,), dtype=int)
-		for im in range(0,nminorabsupper):
-			for igas in range(0,ngas_req):
-				if requested_gases.values[igas] in (kdist.minor_gases_upper.values[im]).decode("utf-8"):
-					ncontupper_red   = ncontupper_red   + \
-						(kdist.minor_limits_gpt_upper.values[im,1]-kdist.minor_limits_gpt_upper.values[im,0]+1)
-					gas_is_present_upper[im] = 1
-					nminorabsupper_red = nminorabsupper_red + 1
-					break
+		minorgas_upper = search_for_gases(nminorabsupper, minor_gases_upper, ngas_req,   \
+			requested_gases, limits_gpt = kdist.minor_limits_gpt_upper.values)
+		ncontupper_red       = minorgas_upper[0]
+		nminorabsupper_red   = minorgas_upper[1]
+		gas_is_present_upper = minorgas_upper[2]
 		
 		#
 		# Reduce volume mixing ratios for reference atmosphere...
@@ -216,94 +281,59 @@ def load_kdist_noF90(ffi, file_kdist, gases, print_info, output_ctypes):
 			print("   nminorabsupper_red           = ",nminorabsupper_red)
 
 		#
-		# Call reduce_minor (lower) *todo*
-		#
-		indices_lower = np.array(np.where(gas_is_present_lower),dtype=int)
-		if (nminorabslower_red == nminorabslower):
-			minor_gases_lower_red               = kdist.minor_gases_lower.values[indices_lower]
-			scaling_gas_lower_red               = kdist.scaling_gas_lower.values[indices_lower]
-			minor_scales_with_density_lower_red = kdist.minor_scales_with_density_lower.values[indices_lower]
-			scale_by_complement_lower_red       = kdist.scale_by_complement_lower.values[indices_lower]
-			kminor_start_lower_red              = kdist.kminor_start_lower.values
-			minor_limits_gpt_lower_red          = kdist.minor_limits_gpt_lower.values
-			kminor_lower_red                    = kdist.kminor_lower.values
-		else:
-			minor_gases_lower_red               = kdist.minor_gases_lower.values[indices_lower]
-			scaling_gas_lower_red               = kdist.scaling_gas_lower.values[indices_lower]
-			minor_scales_with_density_lower_red = kdist.minor_scales_with_density_lower.values[indices_lower]
-			scale_by_complement_lower_red       = kdist.scale_by_complement_lower.values[indices_lower]
-			kminor_start_lower_red              = np.zeros(nminorabslower_red, dtype=int)
-			minor_limits_gpt_lower_red          = np.zeros((nminorabslower_red, 2), dtype=int)
-			kminor_lower_red                    = np.zeros((ntemp,nmixfrac,ncontlower_red), dtype=float)
-			icnt   = -1
-			n_elim = 0
-			for x in range(0, nminorabslower):
-				ng = kdist.minor_limits_gpt_lower.values[x,1] - kdist.minor_limits_gpt_lower.values[x,0] + 1
-				if (gas_is_present_lower[x]):
-					icnt = icnt + 1
-					minor_limits_gpt_lower_red[icnt,:]= kdist.minor_limits_gpt_lower.values[x,:]
-					kminor_start_lower_red[icnt]      = kdist.kminor_start_lower.values[x] - n_elim
-					ks                                = kminor_start_lower_red[icnt]
-					for ij in range(0,ng):
-						kminor_lower_red[:,:,kminor_start_lower_red[icnt]+ij-1] = \
-							kdist.kminor_lower.values[:,:,kdist.kminor_start_lower.values[x]+ij-1]
-				else:
-					n_elim = n_elim + ng             
-
-		#
-        # Call reduce minor (upper) *todo*
+        # Call reduce minor (lower)
         #
-		indices_upper = np.array(np.where(gas_is_present_upper),dtype=int)        
-		if (nminorabsupper_red == nminorabsupper):
-			minor_gases_upper_red               = kdist.minor_gases_upper.values[indices_upper]
-			scaling_gas_upper_red               = kdist.scaling_gas_upper.values[indices_upper]
-			minor_scales_with_density_upper_red = kdist.minor_scales_with_density_upper.values[indices_upper]
-			scale_by_complement_upper_red       = kdist.scale_by_complement_upper.values[indices_upper]
-			kminor_start_upper_red              = kdist.kminor_start_upper.values
-			minor_limits_gpt_upper_red          = kdist.minor_limits_gpt_upper.values
-			kminor_upper_red                    = kdist.kminor_upper.values
-		else:
-			minor_gases_upper_red               = kdist.minor_gases_upper.values[indices_upper]
-			scaling_gas_upper_red               = kdist.scaling_gas_upper.values[indices_upper]
-			minor_scales_with_density_upper_red = kdist.minor_scales_with_density_upper.values[indices_upper]
-			scale_by_complement_upper_red       = kdist.scale_by_complement_upper.values[indices_upper]
-			kminor_start_upper_red              = np.zeros(nminorabsupper_red, dtype=int)
-			minor_limits_gpt_upper_red          = np.zeros((nminorabsupper_red, 2), dtype=int)
-			kminor_upper_red                    = np.zeros((ntemp,nmixfrac,ncontupper_red), dtype=float)
-			icnt   = -1
-			n_elim = 0
-			for x in range(0, nminorabsupper):
-				ng = kdist.minor_limits_gpt_upper.values[x,1] - kdist.minor_limits_gpt_upper.values[x,0] + 1
-				if (gas_is_present_upper[x]):
-					icnt = icnt + 1
-					minor_limits_gpt_upper_red[icnt,:]= kdist.minor_limits_gpt_upper.values[x,:]
-					kminor_start_upper_red[icnt]      = kdist.kminor_start_upper.values[x] - n_elim
-					ks                                = kminor_start_upper_red[icnt]
-					for ij in range(0,ng):
-						kminor_upper_red[:,:,kminor_start_upper_red[icnt]+ij-1] = \
-							kdist.kminor_upper.values[:,:,kdist.kminor_start_upper.values[x]+ij-1]
-				else:
-					n_elim = n_elim + ng             
+		reduce_minor_lower = reduce_minor(nminorabslower, nminorabslower_red,            \
+			ncontlower_red, ntemp, nmixfrac, gas_is_present_lower,                       \
+			minor_gases_lower, scaling_gas_lower,                                        \
+			kdist.minor_scales_with_density_lower.values,                                \
+			kdist.scale_by_complement_lower.values, kdist.kminor_start_lower.values,     \
+			kdist.minor_limits_gpt_lower.values, kdist.kminor_lower.values)
+		minor_gases_lower_red               = reduce_minor_lower[0]
+		scaling_gas_lower_red               = reduce_minor_lower[1]
+		minor_scales_with_density_lower_red = reduce_minor_lower[2]
+		scale_by_complement_lower_red       = reduce_minor_lower[3]
+		kminor_start_lower_red              = reduce_minor_lower[4]
+		minor_limits_gpt_lower_red          = reduce_minor_lower[5]
+		kminor_lower_red                    = reduce_minor_lower[6]
+					           
+		#
+        # Call reduce minor (upper)
+        #
+		reduce_minor_upper = reduce_minor(nminorabsupper, nminorabsupper_red,            \
+			ncontupper_red, ntemp, nmixfrac, gas_is_present_upper,                       \
+			minor_gases_upper, scaling_gas_upper,                                        \
+			kdist.minor_scales_with_density_upper.values,                                \
+			kdist.scale_by_complement_upper.values, kdist.kminor_start_upper.values,     \
+			kdist.minor_limits_gpt_upper.values, kdist.kminor_upper.values)
+		minor_gases_upper_red               = reduce_minor_upper[0]
+		scaling_gas_upper_red               = reduce_minor_upper[1]
+		minor_scales_with_density_upper_red = reduce_minor_upper[2]
+		scale_by_complement_upper_red       = reduce_minor_upper[3]
+		kminor_start_upper_red              = reduce_minor_upper[4]
+		minor_limits_gpt_upper_red          = reduce_minor_upper[5]
+		kminor_upper_red                    = reduce_minor_upper[6]
 
 		#
 		# Call create_idx_minor
 		#
-		idx_minor_lower = create_idx_minor(strlen, nminorabslower_red, minor_gases_lower_red,    \
-											ngas_req, requested_gases, kdist.identifier_minor,   \
-											kdist.gas_minor)
+		idx_minor_lower = create_idx_minor(nminorabslower_red, minor_gases_lower_red,    \
+			ngas_req, requested_gases, identifier_minor, nminorabs, gas_minor)
 
-		idx_minor_upper = create_idx_minor(strlen, nminorabsupper_red, minor_gases_upper_red,    \
-						     			   ngas_req, requested_gases,  kdist.identifier_minor,   \
-						     			   kdist.gas_minor)
-
+		idx_minor_upper = create_idx_minor(nminorabsupper_red, minor_gases_upper_red,    \
+			ngas_req, requested_gases,  identifier_minor, nminorabs, gas_minor)
+		print("idx_minor_lower: ",idx_minor_lower)
+		print("idx_minor_upper: ",idx_minor_upper)
 		#
 		# Call create_idx_minor_scaling
 		#
-		idx_minor_scaling_lower = create_idx_minor_scaling(strlen, nminorabslower_red,           \
-								     scaling_gas_lower_red, ngas_req, requested_gases)
+		idx_minor_scaling_lower = create_idx_minor_scaling(nminorabslower_red,           \
+			scaling_gas_lower_red, ngas_req, requested_gases)
 
-		idx_minor_scaling_upper = create_idx_minor_scaling(strlen, nminorabsupper_red,           \
-								     scaling_gas_upper_red, ngas_req, requested_gases)		
+		idx_minor_scaling_upper = create_idx_minor_scaling(nminorabsupper_red,           \
+			scaling_gas_upper_red, ngas_req, requested_gases)
+		print("idx_minor_scaling_lower: ",idx_minor_scaling_lower)
+		print("idx_minor_scaling_upper: ",idx_minor_scaling_upper)
 		
 		#
 		# Reduce "key_species"
@@ -317,8 +347,8 @@ def load_kdist_noF90(ffi, file_kdist, gases, print_info, output_ctypes):
 				for iband in range(0,nband):
 					ki = kdist.key_species.values[iband,iatm,ipair]
 					if (ki != 0):
-						key_species_red[iband,iatm,ipair] = string_loc_in_array(strlen,  \
-							kdist.gas_names.values[ki-1], requested_gases.values, ngas_req)+1
+						key_species_red[iband,iatm,ipair] = string_loc_in_array(  \
+							gas_names[ki-1], requested_gases)+1
 						if (key_species_red[iband,iatm,ipair] == -1): 
 							key_species_present_init[ki] = False
 					else:
@@ -386,15 +416,14 @@ def load_kdist_noF90(ffi, file_kdist, gases, print_info, output_ctypes):
 			for iatm in range(0,natmlayer):
 				if (flavor[iatm,iflav] != 0): is_key[flavor[iatm,iflav]-1] = True
 
-		##########################################################################################
+		##################################################################################
 		#
 		# Copy data from k-distribution file into c-types...
 		#
-		##########################################################################################
+		##################################################################################
 		#
 		# Dimensions/scalars
 		#
-		c_strlen              = ffi.new("int *",    strlen)
 		c_ngas_req            = ffi.new("int *",    ngas_req) 
 		c_ntemp               = ffi.new("int *",    ntemp) 
 		c_nmixfrac            = ffi.new("int *",    nmixfrac) 
@@ -577,13 +606,13 @@ def load_kdist_noF90(ffi, file_kdist, gases, print_info, output_ctypes):
 		c_key_species_present_init            = ffi.new("int ["    + str(nmajorabs)          +"]",\
 			key_species_present_init.tolist())
 		c_minor_scales_with_density_lower_red = ffi.new("int ["    + str(nminorabslower_red) +"]",\
-			(minor_scales_with_density_lower_red[0][:]).tolist())
+			(minor_scales_with_density_lower_red[:]))
 		c_minor_scales_with_density_upper_red = ffi.new("int ["    + str(nminorabsupper_red) +"]",\
-			(minor_scales_with_density_upper_red[0][:]).tolist())
+			(minor_scales_with_density_upper_red[:]))
 		c_scale_by_complement_lower_red       = ffi.new("int ["    + str(nminorabslower_red) +"]",\
-			(scale_by_complement_lower_red[0][:]).tolist())
+			(scale_by_complement_lower_red[:]))
 		c_scale_by_complement_upper_red       = ffi.new("int ["    + str(nminorabsupper_red) +"]",\
-			(scale_by_complement_upper_red[0][:]).tolist())
+			(scale_by_complement_upper_red[:]))
 		c_ncontlower_red                      = ffi.new("int *",   ncontlower_red)
 		c_ncontupper_red                      = ffi.new("int *",   ncontupper_red)
 		c_nminorabslower_red                  = ffi.new("int *",   nminorabslower_red)
@@ -597,8 +626,7 @@ def load_kdist_noF90(ffi, file_kdist, gases, print_info, output_ctypes):
 		#
 		##########################################################################################
 		if (output_ctypes):		
-			kdistOUT = {'c_strlen': c_strlen,                                                        \
-                        'c_ngas_req': c_ngas_req,                                                    \
+			kdistOUT = {'c_ngas_req': c_ngas_req,                                                    \
                         'c_ntemp': c_ntemp,                                                          \
                         'c_nmixfrac': c_nmixfrac,                                                    \
                         'c_ncontlower': c_ncontlower,                                                \
