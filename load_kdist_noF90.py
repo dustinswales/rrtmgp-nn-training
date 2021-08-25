@@ -416,6 +416,9 @@ def load_kdist_noF90(ffi, file_kdist, gases, print_info, output_ctypes):
 		for iflav in range(0,nunique_flavors):
 			for iatm in range(0,natmlayer):
 				if (flavor[iatm,iflav] != 0): is_key[flavor[iatm,iflav]-1] = True
+				
+		# Store index into gas-array for water-vapor
+		idx_h2o = string_loc_in_array('h2o', requested_gases)
 
 		##################################################################################
 		#
@@ -442,6 +445,7 @@ def load_kdist_noF90(ffi, file_kdist, gases, print_info, output_ctypes):
 		c_npair               = ffi.new("int *",    npair)
 		c_nabsorber_ext       = ffi.new("int *",    nabsorber_ext)
 		c_nflavors            = ffi.new("int *",    nunique_flavors)
+		c_idx_h2o             = ffi.new("int *",    idx_h2o)
 		c_press_ref_trop      = ffi.new("double *", press_ref_trop)
 		c_press_ref_trop_log  = ffi.new("double *", press_ref_trop_log)
 		c_temp_ref_min        = ffi.new("double *", temp_ref_min)
@@ -501,6 +505,8 @@ def load_kdist_noF90(ffi, file_kdist, gases, print_info, output_ctypes):
 			(kdist.kminor_start_lower.values).tolist())
 		c_minor_limits_gpt_upper          = ffi.new("int [2][" + str(nminorabsupper) + "]",      \
 			(np.reshape(kdist.minor_limits_gpt_upper.values,[2,nminorabsupper])).tolist())
+		c_bnd_limits_gpt                  = ffi.new("int [2][" + str(nband)          + "]",       \
+			(np.reshape(kdist.bnd_limits_gpt.values,[2,nband])).tolist())			
 		c_minor_scales_with_density_upper = ffi.new("int ["    + str(nminorabsupper) + "]",      \
 			(kdist.minor_scales_with_density_upper.values).tolist())
 		c_scale_by_complement_upper       = ffi.new("int ["    + str(nminorabsupper) + "]",      \
@@ -526,6 +532,7 @@ def load_kdist_noF90(ffi, file_kdist, gases, print_info, output_ctypes):
 			str(ngas_req+1)     + "][" +                                                         \
 			str(ntemp)          + "]",                                                           \
 			vmr_ref_red.tolist())
+
 		# Planck function tables (LW only)
 		if (doLW):
 			c_totplnk = ffi.new("double [" +                                                     \
@@ -644,6 +651,8 @@ def load_kdist_noF90(ffi, file_kdist, gases, print_info, output_ctypes):
                         'c_npair': c_npair,                                                          \
                         'c_nabsorber_ext': c_nabsorber_ext,                                          \
                         'c_nflavors': c_nflavors,                                                    \
+                        'c_idx_h2o': c_idx_h2o,                                                      \
+                        'c_bnd_limits_gpt': c_bnd_limits_gpt,                                        \
                         'c_press_ref_trop': c_press_ref_trop,                                        \
                         'c_press_ref_trop_log': c_press_ref_trop_log,                                \
                     	'c_temp_ref_min': c_temp_ref_min,                                            \
