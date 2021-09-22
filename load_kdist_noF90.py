@@ -10,25 +10,24 @@ import xarray as xr
 ##########################################################################################
 ##########################################################################################
 def string_loc_in_array(str2find, strarray):
-	for istr in range(0,len(strarray)):
-		# Force string-array into target string length. 
-		if (str(strarray[istr]).ljust(len(str2find),' ') == str2find):
-			strindex = istr
-			break
-		else:
-			strindex = -1
-	return strindex
+        for istr in range(0,len(strarray)):
+                # Force string-array into target string length. 
+                if (str(strarray[istr]).ljust(len(str2find),' ') == str2find):
+                        strindex = istr
+                        break
+                else:
+                        strindex = -1
+        return strindex
 
 ##########################################################################################
 ##########################################################################################
 def create_idx_minor(nminorabs_red, minor_gases_red, ngas_req, requested_gases,  \
 	identifier_minor, nidentifier_minor, gas_minor):
-	idx_minor = np.zeros(nminorabs_red,dtype=int) - 1
+	idx_minor = np.ones(nminorabs_red,dtype=int)
 	for iminorgas in range(0,nminorabs_red):
-		idx_mnr = -1
 		if (minor_gases_red[iminorgas] in identifier_minor):
-			idx_mnr              = string_loc_in_array(minor_gases_red[iminorgas], identifier_minor)
-			idx_minor[iminorgas] = string_loc_in_array(gas_minor[idx_mnr],         requested_gases)
+                        idx_mnr              = string_loc_in_array(minor_gases_red[iminorgas], identifier_minor)
+                        idx_minor[iminorgas] = string_loc_in_array(gas_minor[idx_mnr],         requested_gases)
 	return idx_minor
 	
 ##########################################################################################
@@ -43,8 +42,9 @@ def create_idx_minor_scaling(nminorabs_red, scaling_gas_red, ngas_req, requested
 ##########################################################################################
 ##########################################################################################
 def reduce_minor(nminorabs, nminorabs_red, ncont_red, ntemp, nmixfrac, gas_is_present,   \
-	minor_gases_atm, scaling_gas_atm, minor_scales_with_density_atm,                     \
-	scale_by_complement_atm, kminor_start_atm, minor_limits_gpt_atm, kminor_atm):
+                 minor_gases_atm, scaling_gas_atm, minor_scales_with_density_atm,        \
+                 scale_by_complement_atm, kminor_start_atm, minor_limits_gpt_atm,        \
+                 kminor_atm):
 	
 	minor_gases_atm_red               = []
 	scaling_gas_atm_red               = []
@@ -91,7 +91,7 @@ def search_for_gases(ngas1, gas1, ngas2, gas2, limits_gpt = None):
 	count             = 0
 	for igas1 in range(0,ngas1):
 		for igas2 in range(0,ngas2):
-			if gas2[igas2] in gas1[igas1]:
+			if gas1[igas1].startswith(gas2[igas2].strip()):
 				gas_is_present[igas1] = True
 				count = count + 1
 				if (np.any(limits_gpt)):
@@ -281,10 +281,10 @@ def load_kdist_noF90(ffi, file_kdist, gases, print_info, output_ctypes):
 			print("   nminorabsupper_red           = ",nminorabsupper_red)
 
 		#
-        # Call reduce minor (lower)
-        #
+                # Call reduce minor (lower)
+                #
 		reduce_minor_lower = reduce_minor(nminorabslower, nminorabslower_red,            \
-			ncontlower_red, ntemp, nmixfrac, gas_is_present_lower,                       \
+                        ncontlower_red, ntemp, nmixfrac, gas_is_present_lower,                       \
 			minor_gases_lower, scaling_gas_lower,                                        \
 			kdist.minor_scales_with_density_lower.values,                                \
 			kdist.scale_by_complement_lower.values, kdist.kminor_start_lower.values,     \
@@ -318,21 +318,21 @@ def load_kdist_noF90(ffi, file_kdist, gases, print_info, output_ctypes):
 		# Call create_idx_minor
 		#
 		idx_minor_lower = create_idx_minor(nminorabslower_red, minor_gases_lower_red,    \
-			ngas_req, requested_gases, identifier_minor, nminorabs, gas_minor)
+			ngas_req, requested_gases, identifier_minor, nminorabs, gas_minor) + 1
 
 		idx_minor_upper = create_idx_minor(nminorabsupper_red, minor_gases_upper_red,    \
-			ngas_req, requested_gases,  identifier_minor, nminorabs, gas_minor)
+			ngas_req, requested_gases,  identifier_minor, nminorabs, gas_minor) + 1
 		#print("idx_minor_lower: ",idx_minor_lower)
-		#print("idx_minor_upper: ",idx_minor_upper)
+		#print("idx_minor_upper: ",idx_minor_upper,minor_gases_lower_red)
 		
 		#
 		# Call create_idx_minor_scaling
 		#
 		idx_minor_scaling_lower = create_idx_minor_scaling(nminorabslower_red,           \
-			scaling_gas_lower_red, ngas_req, requested_gases)
+			scaling_gas_lower_red, ngas_req, requested_gases) + 1
 
 		idx_minor_scaling_upper = create_idx_minor_scaling(nminorabsupper_red,           \
-			scaling_gas_upper_red, ngas_req, requested_gases)
+			scaling_gas_upper_red, ngas_req, requested_gases) + 1
 		#print("idx_minor_scaling_lower: ",idx_minor_scaling_lower)
 		#print("idx_minor_scaling_upper: ",idx_minor_scaling_upper)
 		
@@ -633,97 +633,97 @@ def load_kdist_noF90(ffi, file_kdist, gases, print_info, output_ctypes):
 		# Create structure containing all k-distribution data
 		#
 		##########################################################################################
-		if (output_ctypes):		
-			kdistOUT = {'c_ngas_req': c_ngas_req,                                                    \
-                        'c_ntempref': c_ntempref,                                                    \
-                        'c_nmixfrac': c_nmixfrac,                                                    \
-                        'c_ncontlower': c_ncontlower,                                                \
-                        'c_ncontupper': c_ncontupper,                                                \
-                        'c_ncontupper': c_ncontupper,                                                \
-                        'c_nminorabs': c_nminorabs,                                                  \
-                        'c_nminorabslower': c_nminorabslower,                                        \
-                        'c_nminorabsupper': c_nminorabsupper,                                        \
-                        'c_npressref': c_npressref,                                                  \
-                        'c_npressiref': c_npressiref,                                                \
-                        'c_ngpt': c_ngpt,                                                            \
-                        'c_nband': c_nband,                                                          \
-                        'c_natmlayer': c_natmlayer,                                                  \
-                        'c_npair': c_npair,                                                          \
-                        'c_nabsorber_ext': c_nabsorber_ext,                                          \
-                        'c_nflavors': c_nflavors,                                                    \
-                        'c_idx_h2o': c_idx_h2o,                                                      \
-                        'c_bnd_limits_gpt': c_bnd_limits_gpt,                                        \
-                        'c_press_ref_trop': c_press_ref_trop,                                        \
-                        'c_press_ref_trop_log': c_press_ref_trop_log,                                \
-                    	'c_temp_ref_min': c_temp_ref_min,                                            \
-                        'c_temp_ref_max': c_temp_ref_max,                                            \
-                        'c_press_ref_min': c_press_ref_min,                                          \
-                        'c_press_ref_max': c_press_ref_max,                                          \
-                        'c_press_ref_log_delta': c_press_ref_log_delta,                              \
-                        'c_temp_ref_delta': c_temp_ref_delta,                                        \
-                        'c_kmajor': c_kmajor,                                                        \
-                        'c_kminor_lower': c_kminor_lower,                                            \
-                        'c_kminor_upper': c_kminor_upper,                                            \
-                        'c_key_species': c_key_species,                                              \
-                        'c_vmr_ref': c_vmr_ref,                                                      \
-                        'c_minor_limits_gpt_lower': c_minor_limits_gpt_lower,                        \
-                        'c_minor_scales_with_density_lower': c_minor_scales_with_density_lower,      \
-                        'c_scale_by_complement_lower': c_scale_by_complement_lower,                  \
-                        'c_kminor_start_lower': c_kminor_start_lower,                                \
-                        'c_minor_limits_gpt_upper': c_minor_limits_gpt_upper,                        \
-                        'c_minor_scales_with_density_upper': c_minor_scales_with_density_upper,      \
-                        'c_scale_by_complement_upper': c_scale_by_complement_upper,                  \
-                        'c_kminor_start_upper': c_kminor_start_upper,                                \
-                        'c_press_ref': c_press_ref,                                                  \
-                        'c_temp_ref': c_temp_ref,                                                    \
-                        'c_press_ref_log': c_press_ref_log,                                          \
-                        'c_gpt2band': c_gpt2band,                                                    \
-                        'c_gas_is_present_major': c_gas_is_present_major,                            \
-                        'c_gas_is_present_lower': c_gas_is_present_lower,                            \
-                        'c_gas_is_present_upper': c_gas_is_present_upper,                            \
-                        'c_vmr_ref_red': c_vmr_ref_red,                                              \
-                        'c_key_species_red': c_key_species_red,                                      \
-                        'c_kminor_lower_red': c_kminor_lower_red,                                    \
-                        'c_kminor_upper_red': c_kminor_upper_red,                                    \
-                        'c_key_species_list': c_key_species_list,                                    \
-                        'c_minor_limits_gpt_lower_red': c_minor_limits_gpt_lower_red,                \
-                        'c_minor_limits_gpt_upper_red': c_minor_limits_gpt_upper_red,                \
-                        'c_gpoint_flavor': c_gpoint_flavor,                                          \
-                        'c_kminor_start_lower_red': c_kminor_start_lower_red,                        \
-                        'c_kminor_start_upper_red': c_kminor_start_upper_red,                        \
-                        'c_minor_scales_with_density_lower_red': c_minor_scales_with_density_lower_red,\
-                        'c_minor_scales_with_density_upper_red': c_minor_scales_with_density_upper_red,\
-                        'c_scale_by_complement_lower_red': c_scale_by_complement_lower_red,          \
-                        'c_scale_by_complement_upper_red': c_scale_by_complement_upper_red,          \
-                        'c_idx_minor_lower': c_idx_minor_lower,                                      \
-                        'c_idx_minor_upper': c_idx_minor_upper,                                      \
-                        'c_idx_minor_scaling_lower': c_idx_minor_scaling_lower,                      \
-                        'c_idx_minor_scaling_upper': c_idx_minor_scaling_upper,                      \
-                        'c_key_species_present_init': c_key_species_present_init,                    \
-                        'c_is_key': c_is_key,                                                        \
-                        'c_ncontlower_red': c_ncontlower_red,                                        \
-                        'c_ncontupper_red': c_ncontupper_red,                                        \
-                        'c_nminorabslower_red': c_nminorabslower_red,                                \
-                        'c_nminorabsupper_red': c_nminorabsupper_red,                                \
-                        'c_flavors': c_flavors}
+		if (output_ctypes):
+			kdistOUT = {'ngas_req': c_ngas_req,                                                    \
+                                    'ntempref': c_ntempref,                                                    \
+                                    'nmixfrac': c_nmixfrac,                                                    \
+                                    'ncontlower': c_ncontlower,                                                \
+                                    'ncontupper': c_ncontupper,                                                \
+                                    'ncontupper': c_ncontupper,                                                \
+                                    'nminorabs': c_nminorabs,                                                  \
+                                    'nminorabslower': c_nminorabslower,                                        \
+                                    'nminorabsupper': c_nminorabsupper,                                        \
+                                    'npressref': c_npressref,                                                  \
+                                    'npressiref': c_npressiref,                                                \
+                                    'ngpt': c_ngpt,                                                            \
+                                    'nband': c_nband,                                                          \
+                                    'natmlayer': c_natmlayer,                                                  \
+                                    'npair': c_npair,                                                          \
+                                    'nabsorber_ext': c_nabsorber_ext,                                          \
+                                    'nflavors': c_nflavors,                                                    \
+                                    'idx_h2o': c_idx_h2o,                                                      \
+                                    'bnd_limits_gpt': c_bnd_limits_gpt,                                        \
+                                    'press_ref_trop': c_press_ref_trop,                                        \
+                                    'press_ref_trop_log': c_press_ref_trop_log,                                \
+                                    'temp_ref_min': c_temp_ref_min,                                            \
+                                    'temp_ref_max': c_temp_ref_max,                                            \
+                                    'press_ref_min': c_press_ref_min,                                          \
+                                    'press_ref_max': c_press_ref_max,                                          \
+                                    'press_ref_log_delta': c_press_ref_log_delta,                              \
+                                    'temp_ref_delta': c_temp_ref_delta,                                        \
+                                    'kmajor': c_kmajor,                                                        \
+                                    'kminor_lower': c_kminor_lower,                                            \
+                                    'kminor_upper': c_kminor_upper,                                            \
+                                    'key_species': c_key_species,                                              \
+                                    'vmr_ref': c_vmr_ref,                                                      \
+                                    'minor_limits_gpt_lower': c_minor_limits_gpt_lower,                        \
+                                    'minor_scales_with_density_lower': c_minor_scales_with_density_lower,      \
+                                    'scale_by_complement_lower': c_scale_by_complement_lower,                  \
+                                    'kminor_start_lower': c_kminor_start_lower,                                \
+                                    'minor_limits_gpt_upper': c_minor_limits_gpt_upper,                        \
+                                    'minor_scales_with_density_upper': c_minor_scales_with_density_upper,      \
+                                    'scale_by_complement_upper': c_scale_by_complement_upper,                  \
+                                    'kminor_start_upper': c_kminor_start_upper,                                \
+                                    'press_ref': c_press_ref,                                                  \
+                                    'temp_ref': c_temp_ref,                                                    \
+                                    'press_ref_log': c_press_ref_log,                                          \
+                                    'gpt2band': c_gpt2band,                                                    \
+                                    'gas_is_present_major': c_gas_is_present_major,                            \
+                                    'gas_is_present_lower': c_gas_is_present_lower,                            \
+                                    'gas_is_present_upper': c_gas_is_present_upper,                            \
+                                    'vmr_ref_red': c_vmr_ref_red,                                              \
+                                    'key_species_red': c_key_species_red,                                      \
+                                    'kminor_lower_red': c_kminor_lower_red,                                    \
+                                    'kminor_upper_red': c_kminor_upper_red,                                    \
+                                    'key_species_list': c_key_species_list,                                    \
+                                    'minor_limits_gpt_lower_red': c_minor_limits_gpt_lower_red,                \
+                                    'minor_limits_gpt_upper_red': c_minor_limits_gpt_upper_red,                \
+                                    'gpoint_flavor': c_gpoint_flavor,                                          \
+                                    'kminor_start_lower_red': c_kminor_start_lower_red,                        \
+                                    'kminor_start_upper_red': c_kminor_start_upper_red,                        \
+                                    'minor_scales_with_density_lower_red': c_minor_scales_with_density_lower_red,\
+                                    'minor_scales_with_density_upper_red': c_minor_scales_with_density_upper_red,\
+                                    'scale_by_complement_lower_red': c_scale_by_complement_lower_red,          \
+                                    'scale_by_complement_upper_red': c_scale_by_complement_upper_red,          \
+                                    'idx_minor_lower': c_idx_minor_lower,                                      \
+                                    'idx_minor_upper': c_idx_minor_upper,                                      \
+                                    'idx_minor_scaling_lower': c_idx_minor_scaling_lower,                      \
+                                    'idx_minor_scaling_upper': c_idx_minor_scaling_upper,                      \
+                                    'key_species_present_init': c_key_species_present_init,                    \
+                                    'is_key': c_is_key,                                                        \
+                                    'ncontlower_red': c_ncontlower_red,                                        \
+                                    'ncontupper_red': c_ncontupper_red,                                        \
+                                    'nminorabslower_red': c_nminorabslower_red,                                \
+                                    'nminorabsupper_red': c_nminorabsupper_red,                                \
+                                    'flavors': c_flavors}
 			if (doLW):
-				kdistOUT['c_nfit_coeffs']                  = c_nfit_coeffs
-				kdistOUT['c_ntemp_Planck']                 = c_ntemp_Planck
-				kdistOUT['c_totplnk_delta']                = c_totplnk_delta
-				kdistOUT['c_totplnk']                      = c_totplnk
-				kdistOUT['c_planck_frac']                  = c_planck_frac
-				kdistOUT['c_optimal_angle_fit']            = c_optimal_angle_fit
+				kdistOUT['nfit_coeffs']                  = c_nfit_coeffs
+				kdistOUT['ntemp_Planck']                 = c_ntemp_Planck
+				kdistOUT['totplnk_delta']                = c_totplnk_delta
+				kdistOUT['totplnk']                      = c_totplnk
+				kdistOUT['planck_frac']                  = c_planck_frac
+				kdistOUT['optimal_angle_fit']            = c_optimal_angle_fit
 			if (doSW):
-				kdistOUT['c_absorption_coefficient_ref_P'] = c_absorption_coefficient_ref_P
-				kdistOUT['c_absorption_coefficient_ref_T'] = c_absorption_coefficient_ref_T
-				kdistOUT['c_tsi_default']                  = c_tsi_default
-				kdistOUT['c_mg_default']                   = c_mg_default
-				kdistOUT['c_sb_default']                   = c_sb_default
-				kdistOUT['c_rayl_lower']                   = c_rayl_lower
-				kdistOUT['c_rayl_upper']                   = c_rayl_upper
-				kdistOUT['c_solar_source_facular']         = c_solar_source_facular
-				kdistOUT['c_solar_source_sunspot']         = c_solar_source_sunspot
-				kdistOUT['c_solar_source_quiet']           = c_solar_source_quiet
+				kdistOUT['absorption_coefficient_ref_P'] = c_absorption_coefficient_ref_P
+				kdistOUT['absorption_coefficient_ref_T'] = c_absorption_coefficient_ref_T
+				kdistOUT['tsi_default']                  = c_tsi_default
+				kdistOUT['mg_default']                   = c_mg_default
+				kdistOUT['sb_default']                   = c_sb_default
+				kdistOUT['rayl_lower']                   = c_rayl_lower
+				kdistOUT['rayl_upper']                   = c_rayl_upper
+				kdistOUT['solar_source_facular']         = c_solar_source_facular
+				kdistOUT['solar_source_sunspot']         = c_solar_source_sunspot
+				kdistOUT['solar_source_quiet']           = c_solar_source_quiet
 		else:
 			kdistOUT = {}	
 		return kdistOUT
