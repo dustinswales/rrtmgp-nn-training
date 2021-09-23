@@ -97,8 +97,23 @@ def cdef_compute_tau_absorption(ffi, ngpt, nband, neta, npressref, ntemp, ncontl
         double tau["+str(ngpt)+"]["+str(nlay)+"]["+str(ncol)+"] );", override=True)
         
 ##########################################################################################
-def cdef_compute_tau_rayleigh(ffi):
-        return
+def cdef_compute_tau_rayleigh(ffi, ngpt, nband, neta, ngas, ncol, nlay, nlfav, ntemp):
+        ffi.cdef("void compute_tau_rayleigh                                               \
+        int *ncol, int *nlay, int *nbnd, int *ngpt, int *ngas, int *nflav, int *neta,     \
+        int *npres, int *ntemp,                                                           \
+        int gpoint_flavor[2]["+str(ngpt)+"],                                              \
+        int band_lims_gpt[2]["+str(nband)+"],                                             \
+        double krayl["+str(ngpt)+"]["+str(neta)+"]["+str(ntemp)+"][2],                    \
+		int *idx_h2o,                                                                     \
+        double col_dry["+str(ncol)+"]["+str(nlay)+"],                                     \
+        double col_gas["+str(ncol)+"]["+str(nlay)+"]["+str(ngas+1)+"],                    \
+        double fminor[2][2]["+str(nflav)+"]["+str(ncol)+"]["+str(nlay)+"],                \
+        int jeta[2]["+str(nflav)+"]["+str(ncol)+"]["+str(nlay)+"],                        \
+        int tropo["+str(ncol)+"]["+str(nlay)+"],                                          \
+        int jtemp["+str(ncol)+"]["+str(nlay)+"],                                          \
+        double tau_rayleigh["+str(ngpt)+"]["+str(nlay)+"]["+str(ncol)+"] );",             \
+        override=True)
+
 ##########################################################################################
 def cdef_combine_and_reorder(ffi):
         return
@@ -125,8 +140,8 @@ gases_rfmip = ["water_vapor","carbon_dioxide_GM","ozone","nitrous_oxide_GM","met
 ngas_req    = len(gases)
 
 # Location of rte-rrtmgp 
-#rte_rrtmgp_dir = "/home/dswales/Projects/radiation-nn/rrtmgp-nn-training/rte-rrtmgp/"
-rte_rrtmgp_dir = "/scratch2/BMC/ome/Dustin.Swales/radiation-nn/rte-rrtmgp/"
+rte_rrtmgp_dir = "/home/dswales/Projects/radiation-nn/rrtmgp-nn-training/rte-rrtmgp/"
+#rte_rrtmgp_dir = "/scratch2/BMC/ome/Dustin.Swales/radiation-nn/rte-rrtmgp/"
 file_kdistLW   = rte_rrtmgp_dir + "rrtmgp/data/rrtmgp-data-lw-g256-2018-12-04.nc"
 file_kdistSW   = rte_rrtmgp_dir + "rrtmgp/data/rrtmgp-data-sw-g224-2018-12-04.nc"
 
@@ -134,6 +149,7 @@ file_kdistSW   = rte_rrtmgp_dir + "rrtmgp/data/rrtmgp-data-sw-g224-2018-12-04.nc
 conds_file     = "/scratch2/BMC/ome/Dustin.Swales/radiation-nn/multiple_input4MIPs_radiation_RFMIP_UColorado-RFMIP-1-2_none.nc"
 conds_url      = "http://aims3.llnl.gov/thredds/fileServer/user_pub_work/input4MIPs/CMIP6/RFMIP/UColorado/UColorado-RFMIP-1-2/" + \
                  "atmos/fx/multiple/none/v20190401/" + conds_file
+conds_file     = "multiple_input4MIPs_radiation_RFMIP_UColorado-RFMIP-1-2_none.nc"
 #urllib.request.urlretrieve(conds_url, conds_file)
 
 # Open mo_gas_optics_kernels library
@@ -141,7 +157,7 @@ ffi = FFI()
 lib = ffi.dlopen("libs/mo_gas_optics_kernels.so")
 
 # Load k-distribution files
-print_info = False
+print_info = True
 output_to_ctypes = True
 kdistLW = load_kdist_noF90(ffi, file_kdistLW, gases, print_info, output_to_ctypes)
 kdistSW = load_kdist_noF90(ffi, file_kdistSW, gases, print_info, output_to_ctypes)
@@ -175,6 +191,7 @@ vmr[:,:,5] = data_RFMIP.oxygen_GM.values[irfmip_expt]
 # Compute dry air column amounts [molec/cm^2]
 col_dry = get_col_dry(vmr[:,:,0], data_RFMIP.pres_level.values, latitude=data_RFMIP.lat.values)
 
+
 # Compute column gas amounts [molec/cm^2]
 col_gas = np.zeros((ncol_rfmip, nlay_rfmip, ngas_req+1), dtype=np.double)
 col_gas[:,:,0] = col_dry
@@ -198,6 +215,7 @@ c_tlay_rfmip = ffi.new("double ["+str(nblock)+" ]["+str(nlay_rfmip)+"]",    \
                        data_RFMIP.temp_layer.values[irfmip_expt,0:nblock,:].tolist())
 c_col_gas    = ffi.new("double ["+str(nblock)+" ]["+str(nlay_rfmip)+"][ " + \
 	               str(ngas_req+1)+"]", col_gas[0:nblock,:,:].tolist())
+c_col_dry    = ffi.new("double ["+str(nblock)+" ]["+str(nlay_rfmip)+"]", col_dry.tolist())
 
 # Outputs from kernels
 c_jtemp   = ffi.new("int ["+str(nblock)+" ]["+str(nlay_rfmip)+"]")
@@ -213,7 +231,8 @@ c_fminor  = ffi.new("double [2][2]["    + str(kdistSW['nflavors'][0]) + "][" + \
                     str(nblock)+"]["+str(nlay_rfmip)+"]")
 c_tau_sw  = ffi.new("double [" + str(kdistSW['ngpt'][0]) + "][" + str(nlay_rfmip) + \
 	            "][" + str(nblock) + "]")
-
+c_tau_sw_rayl = ffi.new("double [" + str(kdistSW['ngpt'][0]) + "][" + str(nlay_rfmip) + \
+	            "][" + str(nblock) + "]")
 ##########################################################################################
 #
 # Call interpolation ...
@@ -280,7 +299,31 @@ lib.compute_tau_absorption(                                                     
 # Call compute_tau_rayleigh
 #
 ##########################################################################################
+cdef_compute_tau_rayleigh(ffi, kdistSW['ngpt'][0], kdistSW['nband'][0],              \
+	kdistSW['nmixfrac'][0], ngas_req, nblock, nlay_rfmip, kdistSW['nflavors'][0],    \
+	kdistSW['ntempref'][0])
 
+lib.compute_tau_rayleigh(                                                            \
+	c_nblock,                                                                        \
+	c_nlay_rfmip,                                                                    \
+	kdistSW['nband'],                                                                \
+	kdistSW['ngpt'],                                                                 \
+	kdistSW['ngas_req'],                                                             \
+	kdistSW['nflavors'],                                                             \
+	kdistSW['nmixfrac'],                                                             \
+	kdistSW['npressref'],                                                            \
+	kdistSW['ntempref'],                                                             \
+	kdistSW['gpoint_flavor'],                                                        \
+	kdistSW['bnd_limits_gpt'],                                                       \
+	kdistSW['krayl'],                                                                \
+	kdistSW['idx_h2o'],                                                              \
+	c_col_dry,                                                                       \
+	c_col_gas,                                                                       \
+	c_fminor,                                                                        \
+	c_jeta,                                                                          \
+	c_tropo,                                                                         \
+	c_jtemp,                                                                         \
+	c_tau_sw_rayl)
 
 ##########################################################################################
 #

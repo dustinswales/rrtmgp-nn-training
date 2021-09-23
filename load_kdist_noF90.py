@@ -552,16 +552,10 @@ def load_kdist_noF90(ffi, file_kdist, gases, print_info, output_ctypes):
 		
 		# Rayleigh scattering contributions tables (SW only)
 		if (doSW):
-			c_rayl_lower = ffi.new("double [" +                                                  \
-				str(ngpt)           + "][" +                                                     \
-				str(nmixfrac)       + "][" +                                                     \
-				str(ntemp)          + "]",                                                       \
-				(np.reshape(kdist.rayl_lower.values,[ngpt,nmixfrac,ntemp])).tolist())
-			c_rayl_upper = ffi.new("double [" +                                                  \
-				str(ngpt)           + "][" +                                                     \
-				str(nmixfrac)       + "][" +                                                     \
-				str(ntemp)          + "]",                                                       \
-				(np.reshape(kdist.rayl_upper.values,[ngpt,nmixfrac,ntemp])).tolist())
+			rayl = np.empty((ngpt,nmixfrac,ntemp,2),dtype=np.double)
+			rayl[:,:,:,0] =  np.reshape(kdist.rayl_lower.values,[ngpt,nmixfrac,ntemp])
+			rayl[:,:,:,1] =  np.reshape(kdist.rayl_upper.values,[ngpt,nmixfrac,ntemp])
+			c_rayl = ffi.new("double [" + str(ngpt) + "][" + str(nmixfrac) + "][" + str(ntemp) + "][2]", rayl.tolist())
 			c_solar_source_facular = ffi.new("double [" + str(ngpt)+ "]",                        \
 				(kdist.solar_source_facular.values).tolist())
 			c_solar_source_sunspot = ffi.new("double [" + str(ngpt)+ "]",                        \
@@ -719,8 +713,7 @@ def load_kdist_noF90(ffi, file_kdist, gases, print_info, output_ctypes):
 				kdistOUT['tsi_default']                  = c_tsi_default
 				kdistOUT['mg_default']                   = c_mg_default
 				kdistOUT['sb_default']                   = c_sb_default
-				kdistOUT['rayl_lower']                   = c_rayl_lower
-				kdistOUT['rayl_upper']                   = c_rayl_upper
+				kdistOUT['krayl']                        = c_rayl
 				kdistOUT['solar_source_facular']         = c_solar_source_facular
 				kdistOUT['solar_source_sunspot']         = c_solar_source_sunspot
 				kdistOUT['solar_source_quiet']           = c_solar_source_quiet
