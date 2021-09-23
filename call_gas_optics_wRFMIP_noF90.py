@@ -141,7 +141,7 @@ ffi = FFI()
 lib = ffi.dlopen("libs/mo_gas_optics_kernels.so")
 
 # Load k-distribution files
-print_info = False
+print_info = True
 output_to_ctypes = True
 kdistLW = load_kdist_noF90(ffi, file_kdistLW, gases, print_info, output_to_ctypes)
 kdistSW = load_kdist_noF90(ffi, file_kdistSW, gases, print_info, output_to_ctypes)
