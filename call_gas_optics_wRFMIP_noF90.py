@@ -97,14 +97,14 @@ def cdef_compute_tau_absorption(ffi, ngpt, nband, neta, npressref, ntemp, ncontl
         double tau["+str(ngpt)+"]["+str(nlay)+"]["+str(ncol)+"] );", override=True)
         
 ##########################################################################################
-def cdef_compute_tau_rayleigh(ffi, ngpt, nband, neta, ngas, ncol, nlay, nlfav, ntemp):
-        ffi.cdef("void compute_tau_rayleigh                                               \
+def cdef_compute_tau_rayleigh(ffi, ngpt, nband, neta, ngas, ncol, nlay, nflav, ntemp):
+        ffi.cdef("void compute_tau_rayleigh(                                              \
         int *ncol, int *nlay, int *nbnd, int *ngpt, int *ngas, int *nflav, int *neta,     \
         int *npres, int *ntemp,                                                           \
         int gpoint_flavor[2]["+str(ngpt)+"],                                              \
         int band_lims_gpt[2]["+str(nband)+"],                                             \
         double krayl["+str(ngpt)+"]["+str(neta)+"]["+str(ntemp)+"][2],                    \
-		int *idx_h2o,                                                                     \
+        int *idx_h2o,                                                                     \
         double col_dry["+str(ncol)+"]["+str(nlay)+"],                                     \
         double col_gas["+str(ncol)+"]["+str(nlay)+"]["+str(ngas+1)+"],                    \
         double fminor[2][2]["+str(nflav)+"]["+str(ncol)+"]["+str(nlay)+"],                \
@@ -115,8 +115,14 @@ def cdef_compute_tau_rayleigh(ffi, ngpt, nband, neta, ngas, ncol, nlay, nlfav, n
         override=True)
 
 ##########################################################################################
-def cdef_combine_and_reorder(ffi):
-        return
+def cdef_combine_and_reorder_2str(ffi, ncol, nlay, ngpt):
+        ffi.cdef("void combine_and_reorder_2str(                                          \
+        int *ncol, int *nlay, int *ngpt,                                                  \
+        double tau_abs["+str(ngpt)+"]["+str(nlay)+"]["+str(ncol)+"],                      \
+        double tau_rayleigh["+str(ngpt)+"]["+str(nlay)+"]["+str(ncol)+"],                 \
+        double tau["+str(ncol)+"]["+str(nlay)+"]["+str(ngpt)+"],                          \
+        double ssa["+str(ncol)+"]["+str(nlay)+"]["+str(ngpt)+"],                          \
+        double g["+str(ncol)+"]["+str(nlay)+"]["+str(ngpt)+"] );", override=True)
 
 ##########################################################################################
 # Physical constants (from rte-rrtmgp/rrtmgp/mo_gas_optics_rrtmgp.F90)
@@ -128,9 +134,8 @@ m_dry  = 0.028964
 grav   = 9.80665
 # Avogadro's number [molec/mol]
 avogad = 6.02214076
-
 # pi
-pi    = np.arccos(-1.)
+pi     = np.arccos(-1.)
 
 ##########################################################################################
 ##########################################################################################
@@ -140,8 +145,8 @@ gases_rfmip = ["water_vapor","carbon_dioxide_GM","ozone","nitrous_oxide_GM","met
 ngas_req    = len(gases)
 
 # Location of rte-rrtmgp 
-rte_rrtmgp_dir = "/home/dswales/Projects/radiation-nn/rrtmgp-nn-training/rte-rrtmgp/"
-#rte_rrtmgp_dir = "/scratch2/BMC/ome/Dustin.Swales/radiation-nn/rte-rrtmgp/"
+#rte_rrtmgp_dir = "/home/dswales/Projects/radiation-nn/rrtmgp-nn-training/rte-rrtmgp/"
+rte_rrtmgp_dir = "/scratch2/BMC/ome/Dustin.Swales/radiation-nn/rte-rrtmgp/"
 file_kdistLW   = rte_rrtmgp_dir + "rrtmgp/data/rrtmgp-data-lw-g256-2018-12-04.nc"
 file_kdistSW   = rte_rrtmgp_dir + "rrtmgp/data/rrtmgp-data-sw-g224-2018-12-04.nc"
 
@@ -149,7 +154,7 @@ file_kdistSW   = rte_rrtmgp_dir + "rrtmgp/data/rrtmgp-data-sw-g224-2018-12-04.nc
 conds_file     = "/scratch2/BMC/ome/Dustin.Swales/radiation-nn/multiple_input4MIPs_radiation_RFMIP_UColorado-RFMIP-1-2_none.nc"
 conds_url      = "http://aims3.llnl.gov/thredds/fileServer/user_pub_work/input4MIPs/CMIP6/RFMIP/UColorado/UColorado-RFMIP-1-2/" + \
                  "atmos/fx/multiple/none/v20190401/" + conds_file
-conds_file     = "multiple_input4MIPs_radiation_RFMIP_UColorado-RFMIP-1-2_none.nc"
+#conds_file     = "multiple_input4MIPs_radiation_RFMIP_UColorado-RFMIP-1-2_none.nc"
 #urllib.request.urlretrieve(conds_url, conds_file)
 
 # Open mo_gas_optics_kernels library
@@ -233,6 +238,10 @@ c_tau_sw  = ffi.new("double [" + str(kdistSW['ngpt'][0]) + "][" + str(nlay_rfmip
 	            "][" + str(nblock) + "]")
 c_tau_sw_rayl = ffi.new("double [" + str(kdistSW['ngpt'][0]) + "][" + str(nlay_rfmip) + \
 	            "][" + str(nblock) + "]")
+c_tau = ffi.new("double ["+ str(nblock) + "][" + str(nlay_rfmip) + "][" + str(kdistSW['ngpt'][0]) + "]")
+c_ssa = ffi.new("double ["+ str(nblock) + "][" + str(nlay_rfmip) + "][" + str(kdistSW['ngpt'][0]) + "]")
+c_g   = ffi.new("double ["+ str(nblock) + "][" + str(nlay_rfmip) + "][" + str(kdistSW['ngpt'][0]) + "]")
+
 ##########################################################################################
 #
 # Call interpolation ...
@@ -299,11 +308,11 @@ lib.compute_tau_absorption(                                                     
 # Call compute_tau_rayleigh
 #
 ##########################################################################################
-cdef_compute_tau_rayleigh(ffi, kdistSW['ngpt'][0], kdistSW['nband'][0],              \
+cdef_compute_tau_rayleigh(ffi, kdistSW['ngpt'][0], kdistSW['nband'][0],                  \
 	kdistSW['nmixfrac'][0], ngas_req, nblock, nlay_rfmip, kdistSW['nflavors'][0],    \
 	kdistSW['ntempref'][0])
 
-lib.compute_tau_rayleigh(                                                            \
+lib.compute_tau_rayleigh(                                                                \
 	c_nblock,                                                                        \
 	c_nlay_rfmip,                                                                    \
 	kdistSW['nband'],                                                                \
@@ -330,3 +339,12 @@ lib.compute_tau_rayleigh(                                                       
 # Call combine_and_reorder
 #
 ##########################################################################################
+cdef_combine_and_reorder_2str(ffi, nblock, nlay_rfmip, kdistSW['ngpt'][0])
+
+lib.combine_and_reorder_2str(                                                           \
+        c_nblock,                                                                       \
+        c_nlay_rfmip,                                                                   \
+        kdistSW['ngpt'],                                                                \
+        c_tau_sw,                                                                       \
+        c_tau_sw_rayl,                                                                  \
+        c_tau, c_ssa, c_g)
