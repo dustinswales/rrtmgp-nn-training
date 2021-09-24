@@ -4,14 +4,34 @@
 # This script reads in the RFMIP data and calls the RRTMGP gas-optics kernels.
 #
 ##########################################################################################
-import sys
-import os
 import urllib.request
 import numpy as np
-import mo_gas_optics_kernels
 from cffi import FFI
 from load_kdist_noF90 import load_kdist_noF90
 import xarray as xr
+
+##########################################################################################
+def construct_arg4_fficdef(info):
+  # Constructs the CFFI-compatible arguments for ffi.cdef()
+  # Wants a dictionary with type, dims which might be strings or integers
+  # If there are no dims prefix the name with *
+  res = info["ctype"] + " "
+  if "dims" in info.keys():
+      res += info['name']
+      for d in info["dims"]:
+          res += "[{}]".format(d)
+  else:
+    res += "*" +info['name']
+  return(res)
+
+# The function defintion is a little preamble and defintions for all the arguments
+def construct_fficdef(kernel_name, args, return_type="void" ):
+    fdef = '{} {}('.format(return_type, kernel_name)
+    # All the args but the last have trailing comma, space
+    for a in args[:-1]:
+        fdef += "{}, ".format(construct_arg4_fficdef(a))
+    # The last argument needs a closing paren+semicolon and no comma
+    return(fdef + "{});".format(construct_arg4_fficdef(args[-1])) )
 ##########################################################################################
 def get_col_dry(vmr_h2o, p_lev, latitude = None):
 	helmert1 = 9.80665
@@ -35,94 +55,6 @@ def get_col_dry(vmr_h2o, p_lev, latitude = None):
 		# [molec/cm^2]
 		col_dry[:,ilay] = 10.*dp*avogad*fact/(m_air*100.*g0)
 	return col_dry
-	
-##########################################################################################
-def cdef_interpolation(ffi, ncol, nlay, ntemp, npres, nflav, ngas):
-	ffi.cdef("void interpolation(                                                     \
-        int *ncol, int *nlay, int *ngas, int *nflav, int *neta, int *npres, int *ntemp,   \
-        int flavor[2]["+str(nflav)+"],                                                    \
-        double press_ref_log["+str(npres)+"],                                             \
-        double temp_ref["+str(ntemp)+"],                                                  \
-        double *press_ref_log_delta,                                                      \
-        double *temp_ref_min,                                                             \
-        double *temp_ref_delta,                                                           \
-        double *press_ref_trop_log,                                                       \
-        double vmr_ref[2]["+str(ngas+1)+"]["+str(ntemp)+"],                               \
-        double play["+str(ncol)+"]["+str(nlay)+"],                                        \
-        double tlay["+str(ncol)+"]["+str(nlay)+"],                                        \
-        double col_gas["+str(ncol)+"]["+str(nlay)+"]["+str(ngas+1)+"],                    \
-        int jtemp["+str(ncol)+"]["+str(nlay)+"],                                          \
-        double fmajor[2][2][2]["+str(nflav)+"]["+str(ncol)+"]["+str(nlay)+"],             \
-        double fminor[2][2]["+str(nflav)+"]["+str(ncol)+"]["+str(nlay)+"],                \
-        double col_mix[2]["+str(nflav)+"]["+str(ncol)+"]["+str(nlay)+"],                  \
-        int tropo["+str(ncol)+"]["+str(nlay)+"],                                          \
-        int jeta[2]["+str(nflav)+"]["+str(ncol)+"]["+str(nlay)+"],                        \
-        int jpress["+str(ncol)+"]["+str(nlay)+"]);", override=True)
-        
-##########################################################################################
-def cdef_compute_tau_absorption(ffi, ngpt, nband, neta, npressref, ntemp, ncontlower,     \
-                                ncontupper, nminorabslower, nminorabsupper, nflav, ngas,  \
-                                ncol, nlay):
-        ffi.cdef("void compute_tau_absorption(                                            \
-        int *ncol, int *nlay, int *nbnd, int *ngpt, int *ngas, int *nflav, int *neta,     \
-        int *npres, int *ntemp, int *nminorlower, int *nminorklower, int *nminorupper,    \
-        int *nminorkupper, int *idx_h2o,                                                  \
-        int gpoint_flavor[2]["+str(ngpt)+"],                                              \
-        int band_lims_gpt[2]["+str(nband)+"],                                             \
-        double kmajor["+str(ngpt)+"]["+str(neta)+"]["+str(npressref+1)+"]["+str(ntemp)+"],\
-        double kminor_lower["+str(ncontlower)+"]["+str(neta)+"]["+str(ntemp)+"],          \
-        double kminor_upper["+str(ncontupper)+"]["+str(neta)+"]["+str(ntemp)+"],          \
-        int minor_limits_gpt_lower[2]["+str(nminorabslower)+"],                           \
-        int minor_limits_gpt_upper[2]["+str(nminorabsupper)+"],                           \
-        int minor_scales_with_density_lower["+str(nminorabslower)+"],                     \
-        int minor_scales_with_density_upper["+str(nminorabsupper)+"],                     \
-        int scale_by_complement_lower["+str(nminorabslower)+"],                           \
-        int scale_by_complement_upper["+str(nminorabsupper)+"],                           \
-        int idx_minor_lower["+str(nminorabslower)+"],                                     \
-        int idx_minor_upper["+str(nminorabsupper)+"],                                     \
-        int idx_minor_scaling_lower["+str(nminorabslower)+"],                             \
-        int idx_minor_scaling_upper["+str(nminorabsupper)+"],                             \
-        int kminor_start_lower["+str(nminorabslower)+"],                                  \
-        int kminor_start_upper["+str(nminorabsupper)+"],                                  \
-        int tropo["+str(ncol)+"]["+str(nlay)+"],                                          \
-        double col_mix[2]["+str(nflav)+"]["+str(ncol)+"]["+str(nlay)+"],                  \
-        double fmajor[2][2][2]["+str(nflav)+"]["+str(ncol)+"]["+str(nlay)+"],             \
-        double fminor[2][2]["+str(nflav)+"]["+str(ncol)+"]["+str(nlay)+"],                \
-        double play["+str(ncol)+"]["+str(nlay)+"],                                        \
-        double tlay["+str(ncol)+"]["+str(nlay)+"],                                        \
-        double col_gas["+str(ncol)+"]["+str(nlay)+"]["+str(ngas+1)+"],                    \
-        int jeta[2]["+str(nflav)+"]["+str(ncol)+"]["+str(nlay)+"],                        \
-        int jtemp["+str(ncol)+"]["+str(nlay)+"],                                          \
-        int jpress["+str(ncol)+"]["+str(nlay)+"],                                         \
-        double tau["+str(ngpt)+"]["+str(nlay)+"]["+str(ncol)+"] );", override=True)
-        
-##########################################################################################
-def cdef_compute_tau_rayleigh(ffi, ngpt, nband, neta, ngas, ncol, nlay, nflav, ntemp):
-        ffi.cdef("void compute_tau_rayleigh(                                              \
-        int *ncol, int *nlay, int *nbnd, int *ngpt, int *ngas, int *nflav, int *neta,     \
-        int *npres, int *ntemp,                                                           \
-        int gpoint_flavor[2]["+str(ngpt)+"],                                              \
-        int band_lims_gpt[2]["+str(nband)+"],                                             \
-        double krayl["+str(ngpt)+"]["+str(neta)+"]["+str(ntemp)+"][2],                    \
-        int *idx_h2o,                                                                     \
-        double col_dry["+str(ncol)+"]["+str(nlay)+"],                                     \
-        double col_gas["+str(ncol)+"]["+str(nlay)+"]["+str(ngas+1)+"],                    \
-        double fminor[2][2]["+str(nflav)+"]["+str(ncol)+"]["+str(nlay)+"],                \
-        int jeta[2]["+str(nflav)+"]["+str(ncol)+"]["+str(nlay)+"],                        \
-        int tropo["+str(ncol)+"]["+str(nlay)+"],                                          \
-        int jtemp["+str(ncol)+"]["+str(nlay)+"],                                          \
-        double tau_rayleigh["+str(ngpt)+"]["+str(nlay)+"]["+str(ncol)+"] );",             \
-        override=True)
-
-##########################################################################################
-def cdef_combine_and_reorder_2str(ffi, ncol, nlay, ngpt):
-        ffi.cdef("void combine_and_reorder_2str(                                          \
-        int *ncol, int *nlay, int *ngpt,                                                  \
-        double tau_abs["+str(ngpt)+"]["+str(nlay)+"]["+str(ncol)+"],                      \
-        double tau_rayleigh["+str(ngpt)+"]["+str(nlay)+"]["+str(ncol)+"],                 \
-        double tau["+str(ncol)+"]["+str(nlay)+"]["+str(ngpt)+"],                          \
-        double ssa["+str(ncol)+"]["+str(nlay)+"]["+str(ngpt)+"],                          \
-        double g["+str(ncol)+"]["+str(nlay)+"]["+str(ngpt)+"] );", override=True)
 
 ##########################################################################################
 # Physical constants (from rte-rrtmgp/rrtmgp/mo_gas_optics_rrtmgp.F90)
@@ -162,20 +94,30 @@ ffi = FFI()
 lib = ffi.dlopen("libs/mo_gas_optics_kernels.so")
 
 # Load k-distribution files
-print_info = True
+print_info = False
 output_to_ctypes = True
 kdistLW = load_kdist_noF90(ffi, file_kdistLW, gases, print_info, output_to_ctypes)
 kdistSW = load_kdist_noF90(ffi, file_kdistSW, gases, print_info, output_to_ctypes)
+
+# Dimensions (flat)
+ntemp          = kdistSW['ntempref'][0]
+npres          = kdistSW['npressref'][0]
+nflav          = kdistSW['nflavors'][0]
+ngpt           = kdistSW['ngpt'][0]
+nband          = kdistSW['nband'][0]
+neta           = kdistSW['nmixfrac'][0]
+ncontlower     = kdistSW['ncontlower_red'][0]
+ncontupper     = kdistSW['ncontupper_red'][0]
+nminorabslower = kdistSW['nminorabslower_red'][0]
+nminorabsupper = kdistSW['nminorabsupper_red'][0]
 
 # Load RFMIP data
 data_RFMIP = xr.open_dataset(conds_file,concat_characters=True,decode_cf=True)
 
 # Dimensions (flat)
-ncol_rfmip = data_RFMIP.lon.size
-nlay_rfmip = data_RFMIP.pres_layer[0,:].size
-nlev_rfmip = data_RFMIP.pres_level[0,:].size
-
-print("RFMIP dims: ",ncol_rfmip, nlay_rfmip, nlev_rfmip)
+ncol = data_RFMIP.lon.size
+nlay = data_RFMIP.pres_layer[0,:].size
+nlev = data_RFMIP.pres_level[0,:].size
 
 #
 # This section prepares the RFMIP data for use by the rrtmgp-kernels.
@@ -184,8 +126,7 @@ print("RFMIP dims: ",ncol_rfmip, nlay_rfmip, nlev_rfmip)
 irfmip_expt = 0
 
 # Create array of volume-mixing-ratios (vmr), populate with RFMIP data
-#ngases = kdistLW['c_ngas_req'][0]
-vmr = np.zeros((ncol_rfmip, nlay_rfmip, ngas_req), dtype=np.double)
+vmr = np.zeros((ncol, nlay, ngas_req), dtype=np.double)
 vmr[:,:,0] = data_RFMIP.water_vapor.values[irfmip_expt,:,:]
 vmr[:,:,1] = data_RFMIP.carbon_dioxide_GM.values[irfmip_expt]
 vmr[:,:,2] = data_RFMIP.ozone.values[irfmip_expt,:,:]
@@ -196,9 +137,8 @@ vmr[:,:,5] = data_RFMIP.oxygen_GM.values[irfmip_expt]
 # Compute dry air column amounts [molec/cm^2]
 col_dry = get_col_dry(vmr[:,:,0], data_RFMIP.pres_level.values, latitude=data_RFMIP.lat.values)
 
-
 # Compute column gas amounts [molec/cm^2]
-col_gas = np.zeros((ncol_rfmip, nlay_rfmip, ngas_req+1), dtype=np.double)
+col_gas = np.zeros((ncol, nlay, ngas_req+1), dtype=np.double)
 col_gas[:,:,0] = col_dry
 col_gas[:,:,1] = vmr[:,:,0] * col_dry
 col_gas[:,:,2] = vmr[:,:,1] * col_dry
@@ -211,140 +151,257 @@ col_gas[:,:,6] = vmr[:,:,5] * col_dry
 # into the appropriate types for the kernels.
 
 # RFMIP inputs
-nblock       = ncol_rfmip
-c_nblock     = ffi.new("int *", nblock) 
-c_nlay_rfmip = ffi.new("int *", nlay_rfmip)
-c_play_rfmip = ffi.new("double ["+str(nblock)+" ]["+str(nlay_rfmip)+"]",    \
-                       data_RFMIP.pres_layer.values[0:nblock,:].tolist())
-c_tlay_rfmip = ffi.new("double ["+str(nblock)+" ]["+str(nlay_rfmip)+"]",    \
-                       data_RFMIP.temp_layer.values[irfmip_expt,0:nblock,:].tolist())
-c_col_gas    = ffi.new("double ["+str(nblock)+" ]["+str(nlay_rfmip)+"][ " + \
-	               str(ngas_req+1)+"]", col_gas[0:nblock,:,:].tolist())
-c_col_dry    = ffi.new("double ["+str(nblock)+" ]["+str(nlay_rfmip)+"]", col_dry.tolist())
+c_ncol    = ffi.new("int *", ncol) 
+c_nlay    = ffi.new("int *", nlay)
+c_play    = ffi.new("double ["+str(ncol)+" ]["+str(nlay)+"]",    \
+                    data_RFMIP.pres_layer.values[0:ncol,:].tolist())
+c_tlay    = ffi.new("double ["+str(ncol)+" ]["+str(nlay)+"]",    \
+                    data_RFMIP.temp_layer.values[irfmip_expt,0:ncol,:].tolist())
+c_col_gas = ffi.new("double ["+str(ncol)+" ]["+str(nlay)+"]["+str(ngas_req+1)+"]", \
+                    col_gas[0:ncol,:,:].tolist())
+c_col_dry = ffi.new("double ["+str(ncol)+" ]["+str(nlay)+"]", \
+                    col_dry.tolist())
 
 # Outputs from kernels
-c_jtemp   = ffi.new("int ["+str(nblock)+" ]["+str(nlay_rfmip)+"]")
-c_jpress  = ffi.new("int ["+str(nblock)+" ]["+str(nlay_rfmip)+"]")
-c_tropo   = ffi.new("int ["+str(nblock)+" ]["+str(nlay_rfmip)+"]")
-c_jeta    = ffi.new("int [2]["          + str(kdistSW['nflavors'][0]) + "][" + \
-	            str(nblock)+"]["+str(nlay_rfmip)+"]")
-c_col_mix = ffi.new("double [2]["       + str(kdistSW['nflavors'][0]) + "][" + \
-	            str(nblock)+"]["+str(nlay_rfmip)+"]")
-c_fmajor  = ffi.new("double [2][2][2][" + str(kdistSW['nflavors'][0]) + "][" + \
-                    str(nblock)+"]["+str(nlay_rfmip)+"]")
-c_fminor  = ffi.new("double [2][2]["    + str(kdistSW['nflavors'][0]) + "][" + \
-                    str(nblock)+"]["+str(nlay_rfmip)+"]")
-c_tau_sw  = ffi.new("double [" + str(kdistSW['ngpt'][0]) + "][" + str(nlay_rfmip) + \
-	            "][" + str(nblock) + "]")
-c_tau_sw_rayl = ffi.new("double [" + str(kdistSW['ngpt'][0]) + "][" + str(nlay_rfmip) + \
-	            "][" + str(nblock) + "]")
-c_tau = ffi.new("double ["+ str(nblock) + "][" + str(nlay_rfmip) + "][" + str(kdistSW['ngpt'][0]) + "]")
-c_ssa = ffi.new("double ["+ str(nblock) + "][" + str(nlay_rfmip) + "][" + str(kdistSW['ngpt'][0]) + "]")
-c_g   = ffi.new("double ["+ str(nblock) + "][" + str(nlay_rfmip) + "][" + str(kdistSW['ngpt'][0]) + "]")
+c_jtemp       = ffi.new("int ["+str(ncol)+" ]["+str(nlay)+"]")
+c_jpress      = ffi.new("int ["+str(ncol)+" ]["+str(nlay)+"]")
+c_tropo       = ffi.new("int ["+str(ncol)+" ]["+str(nlay)+"]")
+c_jeta        = ffi.new("int [2]["          +str(nflav)+"]["+str(ncol)+"]["+str(nlay)+"]")
+c_col_mix     = ffi.new("double [2]["       +str(nflav)+"]["+str(ncol)+"]["+str(nlay)+"]")
+c_fmajor      = ffi.new("double [2][2][2][" +str(nflav)+"]["+str(ncol)+"]["+str(nlay)+"]")
+c_fminor      = ffi.new("double [2][2]["    +str(nflav)+"]["+str(ncol)+"]["+str(nlay)+"]")
+c_tau_sw      = ffi.new("double ["+str(ngpt)+"]["+str(nlay)+"]["+str(ncol)+"]")
+c_tau_sw_rayl = ffi.new("double ["+str(ngpt)+"]["+str(nlay)+"]["+str(ncol)+"]")
+c_tau         = ffi.new("double ["+str(ncol)+"]["+str(nlay)+"]["+str(ngpt)+"]")
+c_ssa         = ffi.new("double ["+str(ncol)+"]["+str(nlay)+"]["+str(ngpt)+"]")
+c_g           = ffi.new("double ["+str(ncol)+"]["+str(nlay)+"]["+str(ngpt)+"]")
 
 ##########################################################################################
 #
-# Call interpolation ...
+# Create dictionaries for kernel interfacing
 #
 ##########################################################################################
-cdef_interpolation(ffi, nblock, nlay_rfmip, kdistSW['ntempref'][0],                      \
-	kdistSW['npressref'][0], kdistSW['nflavors'][0], ngas_req)
+#
+args_interpolation = \
+        [{"name":"ncol",                            "ctype":"int"},                                        \
+         {"name":"nlay",                            "ctype":"int"},                                        \
+         {"name":"ngas",                            "ctype":"int"},                                        \
+         {"name":"nflav",                           "ctype":"int"},                                        \
+         {"name":"neta",                            "ctype":"int"},                                        \
+         {"name":"npres",                           "ctype":"int"},                                        \
+         {"name":"ntemp",                           "ctype":"int"},                                        \
+         {"name":"flavor",                          "ctype":"int",    "dims":[2, nflav]},                  \
+         {"name":"press_ref_log",                   "ctype":"double", "dims":[npres]},                     \
+         {"name":"temp_ref",                        "ctype":"double", "dims":[ntemp]},                     \
+         {"name":"press_ref_log_delta",             "ctype":"double"},                                     \
+         {"name":"temp_ref_min",                    "ctype":"double"},                                     \
+         {"name":"temp_ref_delta",                  "ctype":"double"},                                     \
+         {"name":"press_ref_trop_log",              "ctype":"double"},                                     \
+         {"name":"vmr_ref",                         "ctype":"double", "dims":[2, ngas_req+1, ntemp]},      \
+         {"name":"play",                            "ctype":"double", "dims":[ncol, nlay]},                \
+         {"name":"tlay",                            "ctype":"double", "dims":[ncol, nlay]},                \
+         {"name":"col_gas",                         "ctype":"double", "dims":[ncol, nlay, ngas_req+1]},    \
+         {"name":"jtemp",                           "ctype":"int",    "dims":[ncol, nlay]},                \
+         {"name":"fmajor",                          "ctype":"double", "dims":[2, 2, 2, nflav, ncol, nlay]},\
+         {"name":"fminor",                          "ctype":"double", "dims":[2, 2, nflav, ncol, nlay]},   \
+         {"name":"col_mix",                         "ctype":"double", "dims":[2, nflav, ncol, nlay]},      \
+         {"name":"tropo",                           "ctype":"int",    "dims":[ncol, nlay]},                \
+         {"name":"jeta",                            "ctype":"int",    "dims":[2, nflav, ncol, nlay]},      \
+         {"name":"jpress",                          "ctype":"int",    "dims":[ncol, nlay]}]
+args_compute_tau_absorption = \
+        [{"name":"ncol",                            "ctype":"int"},                                        \
+         {"name":"nlay",                            "ctype":"int"},                                        \
+         {"name":"nbnd",                            "ctype":"int"},                                        \
+         {"name":"ngpt",                            "ctype":"int"},                                        \
+         {"name":"ngas",                            "ctype":"int"},                                        \
+         {"name":"nflav",                           "ctype":"int"},                                        \
+         {"name":"neta",                            "ctype":"int"},                                        \
+         {"name":"npres",                           "ctype":"int"},                                        \
+         {"name":"ntemp",                           "ctype":"int"},                                        \
+         {"name":"nminorlower",                     "ctype":"int"},                                        \
+         {"name":"nminorklower",                    "ctype":"int"},                                        \
+         {"name":"nminorupper",                     "ctype":"int"},                                        \
+         {"name":"nminorkupper",                    "ctype":"int"},                                        \
+         {"name":"idx_h2o",                         "ctype":"int"},                                        \
+         {"name":"gpoint_flavor",                   "ctype":"int",    "dims":[2, ngpt]},                   \
+         {"name":"band_lims_gpt",                   "ctype":"int",    "dims":[2, nband]},                  \
+         {"name":"kmajor",                          "ctype":"double", "dims":[ngpt, neta, npres+1, ntemp]},\
+         {"name":"kminor_lower",                    "ctype":"double", "dims":[ncontlower,neta,ntemp]},     \
+         {"name":"kminor_upper",                    "ctype":"double", "dims":[ncontupper,neta,ntemp]},     \
+         {"name":"minor_limits_gpt_lower",          "ctype":"int",    "dims":[2, nminorabslower]},         \
+         {"name":"minor_limits_gpt_upper",          "ctype":"int",    "dims":[2, nminorabsupper]},         \
+         {"name":"minor_scales_with_density_lower", "ctype":"int",    "dims":[nminorabslower]},            \
+         {"name":"minor_scales_with_density_upper", "ctype":"int",    "dims":[nminorabsupper]},            \
+         {"name":"scale_by_complement_lower",       "ctype":"int",    "dims":[nminorabslower]},            \
+         {"name":"scale_by_complement_upper",       "ctype":"int",    "dims":[nminorabsupper]},            \
+         {"name":"idx_minor_lower",                 "ctype":"int",    "dims":[nminorabslower]},            \
+         {"name":"idx_minor_upper",                 "ctype":"int",    "dims":[nminorabsupper]},            \
+         {"name":"idx_minor_scaling_lower",         "ctype":"int",    "dims":[nminorabslower]},            \
+         {"name":"idx_minor_scaling_upper",         "ctype":"int",    "dims":[nminorabsupper]},            \
+         {"name":"kminor_start_lower",              "ctype":"int",    "dims":[nminorabslower]},            \
+         {"name":"kminor_start_upper",              "ctype":"int",    "dims":[nminorabsupper]},            \
+         {"name":"tropo",                           "ctype":"int",    "dims":[ncol, nlay]},                \
+         {"name":"col_mix",                         "ctype":"double", "dims":[2, nflav, ncol, nlay]},      \
+         {"name":"fmajor",                          "ctype":"double", "dims":[2, 2, 2, nflav, ncol, nlay]},\
+         {"name":"fminor",                          "ctype":"double", "dims":[2, 2, nflav, ncol, nlay]},   \
+         {"name":"play",                            "ctype":"double", "dims":[ncol, nlay]},                \
+         {"name":"tlay",                            "ctype":"double", "dims":[ncol, nlay]},                \
+         {"name":"col_gas",                         "ctype":"double", "dims":[ncol, nlay, ngas_req+1]},    \
+         {"name":"jeta",                            "ctype":"int",    "dims":[2, nflav, ncol, nlay]},      \
+         {"name":"jtemp",                           "ctype":"int",    "dims":[ncol, nlay]},                \
+         {"name":"jpress",                          "ctype":"int",    "dims":[ncol, nlay]},                \
+         {"name":"tau",                             "ctype":"double", "dims":[ngpt,nlay,ncol]}]
+args_compute_tau_rayleigh = \
+        [{"name":"ncol",                            "ctype":"int"},                                        \
+         {"name":"nlay",                            "ctype":"int"},                                        \
+         {"name":"nbnd",                            "ctype":"int"},                                        \
+         {"name":"ngpt",                            "ctype":"int"},                                        \
+         {"name":"ngas",                            "ctype":"int"},                                        \
+         {"name":"nflav",                           "ctype":"int"},                                        \
+         {"name":"neta",                            "ctype":"int"},                                        \
+         {"name":"npres",                           "ctype":"int"},                                        \
+         {"name":"ntemp",                           "ctype":"int"},                                        \
+         {"name":"gpoint_flavor",                   "ctype":"int",    "dims":[2, ngpt]},                   \
+         {"name":"band_lims_gpt",                   "ctype":"int",    "dims":[2, nband]},                  \
+         {"name":"krayl",                           "ctype":"double", "dims":[ngpt,neta,ntemp,2]},         \
+         {"name":"idx_h2o",                         "ctype":"int"},                                        \
+         {"name":"col_dry",                         "ctype":"double", "dims":[ncol, nlay]},                \
+         {"name":"col_gas",                         "ctype":"double", "dims":[ncol, nlay, ngas_req+1]},    \
+         {"name":"fminor",                          "ctype":"double", "dims":[2, 2, nflav, ncol, nlay]},   \
+         {"name":"jeta",                            "ctype":"int",    "dims":[2, nflav, ncol, nlay]},      \
+         {"name":"tropo",                           "ctype":"int",    "dims":[ncol, nlay]},                \
+         {"name":"jtemp",                           "ctype":"int",    "dims":[ncol, nlay]},                \
+         {"name":"tau_rayleigh",                    "ctype":"double", "dims":[ngpt, nlay, ncol]}]
+args_combine_and_reorder_2str = \
+        [{"name":"ncol",                            "ctype":"int"},                                        \
+         {"name":"nlay",                            "ctype":"int"},                                        \
+         {"name":"ngpt",                            "ctype":"int"},                                        \
+         {"name":"tau_abs",                         "ctype":"double", "dims":[ngpt,nlay,ncol]},            \
+         {"name":"tau_rayleigh",                    "ctype":"double", "dims":[ngpt,nlay,ncol]},            \
+         {"name":"tau",                             "ctype":"double", "dims":[ncol,nlay,ngpt]},            \
+         {"name":"ssa",                             "ctype":"double", "dims":[ncol,nlay,ngpt]},            \
+         {"name":"g",                               "ctype":"double", "dims":[ncol,nlay,ngpt]}]
 
-lib.interpolation( c_nblock, c_nlay_rfmip, kdistSW['ngas_req'],                          \
-	kdistSW['nflavors'], kdistSW['nmixfrac'], kdistSW['npressref'],                  \
-	kdistSW['ntempref'], kdistSW['flavors'], kdistSW['press_ref_log'],               \
-	kdistSW['temp_ref'], kdistSW['press_ref_log_delta'], kdistSW['temp_ref_min'],    \
-	kdistSW['temp_ref_delta'], kdistSW['press_ref_trop_log'],                        \
-	kdistSW['vmr_ref_red'], c_play_rfmip, c_tlay_rfmip, c_col_gas, c_jtemp, c_fmajor,\
-	c_fminor, c_col_mix, c_tropo, c_jeta, c_jpress)
 
 ##########################################################################################
 #
-# Call compute_tau_absorption ...
+# Call gas-optics kernels...
 #
-##########################################################################################
-cdef_compute_tau_absorption(ffi, kdistSW['ngpt'][0], kdistSW['nband'][0],                \
-	kdistSW['nmixfrac'][0], kdistSW['npressref'][0], kdistSW['ntempref'][0],         \
-	kdistSW['ncontlower_red'][0], kdistSW['ncontupper_red'][0],                      \
-	kdistSW['nminorabslower_red'][0], kdistSW['nminorabsupper_red'][0],              \
-	kdistSW['nflavors'][0], ngas_req, nblock, nlay_rfmip)
+########################################################################################## 
 
-lib.compute_tau_absorption(                                                              \
-	c_nblock,                                                                        \
-	c_nlay_rfmip,                                                                    \
-	kdistSW['nband'],                                                                \
-	kdistSW['ngpt'],                                                                 \
-	kdistSW['ngas_req'],                                                             \
-	kdistSW['nflavors'],                                                             \
-	kdistSW['nmixfrac'],                                                             \
-	kdistSW['npressref'],                                                            \
-	kdistSW['ntempref'],                                                             \
-	kdistSW['nminorabslower_red'],                                                   \
-	kdistSW['ncontlower_red'],                                                       \
-	kdistSW['nminorabsupper_red'],                                                   \
-	kdistSW['ncontupper_red'],                                                       \
-	kdistSW['idx_h2o'],                                                              \
-	kdistSW['gpoint_flavor'],                                                        \
-	kdistSW['bnd_limits_gpt'],                                                       \
-	kdistSW['kmajor'],                                                               \
-	kdistSW['kminor_lower_red'],                                                     \
-	kdistSW['kminor_upper_red'],                                                     \
-	kdistSW['minor_limits_gpt_lower_red'],                                           \
-	kdistSW['minor_limits_gpt_upper_red'],                                           \
-	kdistSW['minor_scales_with_density_lower_red'],                                  \
-	kdistSW['minor_scales_with_density_upper_red'],                                  \
-	kdistSW['scale_by_complement_lower_red'],                                        \
-	kdistSW['scale_by_complement_upper_red'],                                        \
-	kdistSW['idx_minor_lower'],                                                      \
-	kdistSW['idx_minor_upper'],                                                      \
-	kdistSW['idx_minor_scaling_lower'],                                              \
-	kdistSW['idx_minor_scaling_upper'],                                              \
-	kdistSW['kminor_start_lower_red'],                                               \
-	kdistSW['kminor_start_upper_red'],                                               \
-	c_tropo, c_col_mix, c_fmajor, c_fminor, c_play_rfmip, c_tlay_rfmip, c_col_gas,   \
-	c_jeta, c_jtemp, c_jpress, c_tau_sw)
-##########################################################################################
 #
-# Call compute_tau_rayleigh
+# Interpolation
 #
-##########################################################################################
-cdef_compute_tau_rayleigh(ffi, kdistSW['ngpt'][0], kdistSW['nband'][0],                  \
-	kdistSW['nmixfrac'][0], ngas_req, nblock, nlay_rfmip, kdistSW['nflavors'][0],    \
-	kdistSW['ntempref'][0])
+ffi.cdef(construct_fficdef("interpolation",args_interpolation), override=True)
+lib.interpolation(                                                            \
+        c_ncol,                                                               \
+        c_nlay,                                                               \
+        kdistSW['ngas_req'],                                                  \
+	kdistSW['nflavors'],                                                  \
+        kdistSW['nmixfrac'],                                                  \
+        kdistSW['npressref'],                                                 \
+	kdistSW['ntempref'],                                                  \
+        kdistSW['flavors'],                                                   \
+        kdistSW['press_ref_log'],                                             \
+	kdistSW['temp_ref'],                                                  \
+        kdistSW['press_ref_log_delta'],                                       \
+        kdistSW['temp_ref_min'],                                              \
+	kdistSW['temp_ref_delta'],                                            \
+        kdistSW['press_ref_trop_log'],                                        \
+	kdistSW['vmr_ref_red'],                                               \
+        c_play,                                                               \
+        c_tlay,                                                               \
+        c_col_gas,                                                            \
+        c_jtemp,                                                              \
+        c_fmajor,                                                             \
+	c_fminor,                                                             \
+        c_col_mix,                                                            \
+        c_tropo,                                                              \
+        c_jeta,                                                               \
+        c_jpress)
 
-lib.compute_tau_rayleigh(                                                                \
-	c_nblock,                                                                        \
-	c_nlay_rfmip,                                                                    \
-	kdistSW['nband'],                                                                \
-	kdistSW['ngpt'],                                                                 \
-	kdistSW['ngas_req'],                                                             \
-	kdistSW['nflavors'],                                                             \
-	kdistSW['nmixfrac'],                                                             \
-	kdistSW['npressref'],                                                            \
-	kdistSW['ntempref'],                                                             \
-	kdistSW['gpoint_flavor'],                                                        \
-	kdistSW['bnd_limits_gpt'],                                                       \
-	kdistSW['krayl'],                                                                \
-	kdistSW['idx_h2o'],                                                              \
-	c_col_dry,                                                                       \
-	c_col_gas,                                                                       \
-	c_fminor,                                                                        \
-	c_jeta,                                                                          \
-	c_tropo,                                                                         \
-	c_jtemp,                                                                         \
+#
+# Compute_tau_absorption
+#
+ffi.cdef(construct_fficdef("compute_tau_absorption",args_compute_tau_absorption), override=True)
+lib.compute_tau_absorption(                                                   \
+	c_ncol,                                                               \
+	c_nlay,                                                               \
+	kdistSW['nband'],                                                     \
+	kdistSW['ngpt'],                                                      \
+	kdistSW['ngas_req'],                                                  \
+	kdistSW['nflavors'],                                                  \
+	kdistSW['nmixfrac'],                                                  \
+	kdistSW['npressref'],                                                 \
+	kdistSW['ntempref'],                                                  \
+	kdistSW['nminorabslower_red'],                                        \
+	kdistSW['ncontlower_red'],                                            \
+	kdistSW['nminorabsupper_red'],                                        \
+	kdistSW['ncontupper_red'],                                            \
+	kdistSW['idx_h2o'],                                                   \
+	kdistSW['gpoint_flavor'],                                             \
+	kdistSW['bnd_limits_gpt'],                                            \
+	kdistSW['kmajor'],                                                    \
+	kdistSW['kminor_lower_red'],                                          \
+	kdistSW['kminor_upper_red'],                                          \
+	kdistSW['minor_limits_gpt_lower_red'],                                \
+	kdistSW['minor_limits_gpt_upper_red'],                                \
+	kdistSW['minor_scales_with_density_lower_red'],                       \
+	kdistSW['minor_scales_with_density_upper_red'],                       \
+	kdistSW['scale_by_complement_lower_red'],                             \
+	kdistSW['scale_by_complement_upper_red'],                             \
+	kdistSW['idx_minor_lower'],                                           \
+	kdistSW['idx_minor_upper'],                                           \
+	kdistSW['idx_minor_scaling_lower'],                                   \
+	kdistSW['idx_minor_scaling_upper'],                                   \
+	kdistSW['kminor_start_lower_red'],                                    \
+	kdistSW['kminor_start_upper_red'],                                    \
+	c_tropo,                                                              \
+        c_col_mix,                                                            \
+        c_fmajor,                                                             \
+        c_fminor,                                                             \
+        c_play,                                                               \
+        c_tlay,                                                               \
+        c_col_gas,                                                            \
+        c_jeta,                                                               \
+        c_jtemp,                                                              \
+        c_jpress,                                                             \
+        c_tau_sw)
+
+#
+# Compute_tau_rayleigh
+#
+ffi.cdef(construct_fficdef("compute_tau_rayleigh",args_compute_tau_rayleigh), override=True)
+lib.compute_tau_rayleigh(                                                     \
+	c_ncol,                                                               \
+	c_nlay,                                                               \
+	kdistSW['nband'],                                                     \
+	kdistSW['ngpt'],                                                      \
+	kdistSW['ngas_req'],                                                  \
+	kdistSW['nflavors'],                                                  \
+	kdistSW['nmixfrac'],                                                  \
+	kdistSW['npressref'],                                                 \
+	kdistSW['ntempref'],                                                  \
+	kdistSW['gpoint_flavor'],                                             \
+	kdistSW['bnd_limits_gpt'],                                            \
+	kdistSW['krayl'],                                                     \
+	kdistSW['idx_h2o'],                                                   \
+	c_col_dry,                                                            \
+	c_col_gas,                                                            \
+	c_fminor,                                                             \
+	c_jeta,                                                               \
+	c_tropo,                                                              \
+	c_jtemp,                                                              \
 	c_tau_sw_rayl)
 
-##########################################################################################
 #
-# Call combine_and_reorder
+# Combine_and_reorder
 #
-##########################################################################################
-cdef_combine_and_reorder_2str(ffi, nblock, nlay_rfmip, kdistSW['ngpt'][0])
-
-lib.combine_and_reorder_2str(                                                           \
-        c_nblock,                                                                       \
-        c_nlay_rfmip,                                                                   \
-        kdistSW['ngpt'],                                                                \
-        c_tau_sw,                                                                       \
-        c_tau_sw_rayl,                                                                  \
+ffi.cdef(construct_fficdef("combine_and_reorder_2str",args_combine_and_reorder_2str), override=True)
+lib.combine_and_reorder_2str(                                                 \
+        c_ncol,                                                               \
+        c_nlay,                                                               \
+        kdistSW['ngpt'],                                                      \
+        c_tau_sw,                                                             \
+        c_tau_sw_rayl,                                                        \
         c_tau, c_ssa, c_g)
