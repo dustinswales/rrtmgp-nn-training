@@ -7,7 +7,7 @@
 import urllib.request
 import numpy as np
 from cffi import FFI
-from load_kdist_noF90 import load_kdist_noF90
+from load_kdist import load_kdist
 import xarray as xr
 
 ##########################################################################################
@@ -94,10 +94,10 @@ ffi = FFI()
 lib = ffi.dlopen("libs/mo_gas_optics_kernels.so")
 
 # Load k-distribution files
-print_info = False
+print_info = True
 output_to_ctypes = True
-kdistLW = load_kdist_noF90(ffi, file_kdistLW, gases, print_info, output_to_ctypes)
-kdistSW = load_kdist_noF90(ffi, file_kdistSW, gases, print_info, output_to_ctypes)
+kdistLW = load_kdist(ffi, file_kdistLW, gases, print_info, output_to_ctypes)
+kdistSW = load_kdist(ffi, file_kdistSW, gases, print_info, output_to_ctypes)
 
 # Dimensions (flat)
 ntemp          = kdistSW['ntempref'][0]
@@ -106,10 +106,10 @@ nflav          = kdistSW['nflavors'][0]
 ngpt           = kdistSW['ngpt'][0]
 nband          = kdistSW['nband'][0]
 neta           = kdistSW['nmixfrac'][0]
-ncontlower     = kdistSW['ncontlower_red'][0]
-ncontupper     = kdistSW['ncontupper_red'][0]
-nminorabslower = kdistSW['nminorabslower_red'][0]
-nminorabsupper = kdistSW['nminorabsupper_red'][0]
+ncontlower     = kdistSW['ncontlower'][0]
+ncontupper     = kdistSW['ncontupper'][0]
+nminorabslower = kdistSW['nminorabslower'][0]
+nminorabsupper = kdistSW['nminorabsupper'][0]
 
 # Load RFMIP data
 data_RFMIP = xr.open_dataset(conds_file,concat_characters=True,decode_cf=True)
@@ -308,7 +308,7 @@ lib.interpolation(                                                            \
         kdistSW['temp_ref_min'],                                              \
 	kdistSW['temp_ref_delta'],                                            \
         kdistSW['press_ref_trop_log'],                                        \
-	kdistSW['vmr_ref_red'],                                               \
+	kdistSW['vmr_ref'],                                                   \
         c_play,                                                               \
         c_tlay,                                                               \
         c_col_gas,                                                            \
@@ -334,28 +334,28 @@ lib.compute_tau_absorption(                                                   \
 	kdistSW['nmixfrac'],                                                  \
 	kdistSW['npressref'],                                                 \
 	kdistSW['ntempref'],                                                  \
-	kdistSW['nminorabslower_red'],                                        \
-	kdistSW['ncontlower_red'],                                            \
-	kdistSW['nminorabsupper_red'],                                        \
-	kdistSW['ncontupper_red'],                                            \
+	kdistSW['nminorabslower'],                                            \
+	kdistSW['ncontlower'],                                                \
+	kdistSW['nminorabsupper'],                                            \
+	kdistSW['ncontupper'],                                                \
 	kdistSW['idx_h2o'],                                                   \
 	kdistSW['gpoint_flavor'],                                             \
 	kdistSW['bnd_limits_gpt'],                                            \
 	kdistSW['kmajor'],                                                    \
-	kdistSW['kminor_lower_red'],                                          \
-	kdistSW['kminor_upper_red'],                                          \
-	kdistSW['minor_limits_gpt_lower_red'],                                \
-	kdistSW['minor_limits_gpt_upper_red'],                                \
-	kdistSW['minor_scales_with_density_lower_red'],                       \
-	kdistSW['minor_scales_with_density_upper_red'],                       \
-	kdistSW['scale_by_complement_lower_red'],                             \
-	kdistSW['scale_by_complement_upper_red'],                             \
+	kdistSW['kminor_lower'],                                              \
+	kdistSW['kminor_upper'],                                              \
+	kdistSW['minor_limits_gpt_lower'],                                    \
+	kdistSW['minor_limits_gpt_upper'],                                    \
+	kdistSW['minor_scales_with_density_lower'],                           \
+	kdistSW['minor_scales_with_density_upper'],                           \
+	kdistSW['scale_by_complement_lower'],                                 \
+	kdistSW['scale_by_complement_upper'],                                 \
 	kdistSW['idx_minor_lower'],                                           \
 	kdistSW['idx_minor_upper'],                                           \
 	kdistSW['idx_minor_scaling_lower'],                                   \
 	kdistSW['idx_minor_scaling_upper'],                                   \
-	kdistSW['kminor_start_lower_red'],                                    \
-	kdistSW['kminor_start_upper_red'],                                    \
+	kdistSW['kminor_start_lower'],                                        \
+	kdistSW['kminor_start_upper'],                                        \
 	c_tropo,                                                              \
         c_col_mix,                                                            \
         c_fmajor,                                                             \
