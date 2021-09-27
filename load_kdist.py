@@ -521,7 +521,6 @@ def load_kdist(ffi, file_kdist, gases, print_info, output_ctypes):
 			else:
 				res += "*"
 			# Second arguement is value to initialize ctype to.
-			if "init" in c_var_dict[ivars].keys():
-				kdistOUT[c_var_dict[ivars]["name"]] = ffi.new(res,c_var_dict[ivars]["init"])
+			kdistOUT[c_var_dict[ivars]["name"]] = ffi.new(res,c_var_dict[ivars]["init"])
 
 		return kdistOUT
