@@ -21,7 +21,7 @@ def create_idx_minor(minor_gases_red, requested_gases, identifier_minor, gas_min
 ##########################################################################################
 def create_idx_minor_scaling(scaling_gas, requested_gases):
 	idx_minor_scaling = np.full(len(scaling_gas), -1, dtype=int)
-	for igas in range(0, len(scaling_gas)):
+	for igas in range(0,len(scaling_gas)):
 		if scaling_gas[igas]:
 			idx_minor_scaling[igas] = requested_gases.index(scaling_gas[igas])
 	return idx_minor_scaling
@@ -29,44 +29,36 @@ def create_idx_minor_scaling(scaling_gas, requested_gases):
 ##########################################################################################
 ##########################################################################################
 def reduce_minor(nminorabs, nminorabs_red, ncont_red, ntemp, nmixfrac, gas_is_present,
-                 minor_gases_atm, scaling_gas_atm, minor_scales_with_density_atm,
-                 scale_by_complement_atm, kminor_start_atm, minor_limits_gpt_atm,
-                 kminor_atm):
+		 minor_gases, scaling_gas, minor_scales_with_density, scale_by_complement, \
+		 kminor_start, minor_limits_gpt, kminor):
 
-	minor_gases_atm_red = []
-	scaling_gas_atm_red = []
-	minor_scales_with_density_atm_red = []
-	scale_by_complement_atm_red = []
+	minor_gases_red               = []
+	scaling_gas_red               = []
+	minor_scales_with_density_red = []
+	scale_by_complement_red       = []
+	kminor_start_red              = np.zeros(nminorabs_red,                dtype=int)
+	minor_limits_gpt_red          = np.zeros((nminorabs_red, 2),           dtype=int)
+	kminor_red                    = np.zeros((ntemp, nmixfrac, ncont_red), dtype=np.double)
+	icnt   = -1
+	n_elim = 0
 	for igas in range(0, nminorabs):
+		ng = minor_limits_gpt[igas, 1] - minor_limits_gpt[igas, 0] + 1
 		if (gas_is_present[igas]):
-			minor_gases_atm_red.append(minor_gases_atm[igas])
-			scaling_gas_atm_red.append(scaling_gas_atm[igas])
-			minor_scales_with_density_atm_red.append(
-			    minor_scales_with_density_atm[igas])
-			scale_by_complement_atm_red.append(scale_by_complement_atm[igas])
-	if (nminorabs_red == nminorabs):
-		kminor_start_atm_red = kminor_start_atm
-		minor_limits_gpt_atm_red = minor_limits_gpt_atm
-		kminor_atm_red = kminor_atm
-	else:
-		kminor_start_atm_red = np.zeros(nminorabs_red,              dtype=int)
-		minor_limits_gpt_atm_red = np.zeros((nminorabs_red, 2),         dtype=int)
-		kminor_atm_red = np.zeros((ntemp, nmixfrac, ncont_red), dtype=np.double)
-		icnt = -1
-		n_elim = 0
-		for x in range(0, nminorabs):
-			ng = minor_limits_gpt_atm[x, 1] - minor_limits_gpt_atm[x, 0] + 1
-			if (gas_is_present[x]):
-				icnt = icnt + 1
-				minor_limits_gpt_atm_red[icnt, :] = minor_limits_gpt_atm[x, :]
-				kminor_start_atm_red[icnt] = kminor_start_atm[x] - n_elim
-				for ij in range(0, ng):
-					kminor_atm_red[:, :, kminor_start_atm_red[icnt]+ij-1] = kminor_atm[:, :, kminor_start_atm[x]+ij-1]
-			else:
-				n_elim = n_elim + ng
-	return [minor_gases_atm_red, scaling_gas_atm_red, minor_scales_with_density_atm_red, \
-		scale_by_complement_atm_red, kminor_start_atm_red, minor_limits_gpt_atm_red, \
-		kminor_atm_red];
+			minor_gases_red.append(minor_gases[igas])
+			scaling_gas_red.append(scaling_gas[igas])
+			minor_scales_with_density_red.append(minor_scales_with_density[igas])
+			scale_by_complement_red.append(scale_by_complement[igas])
+			icnt = icnt + 1
+			minor_limits_gpt_red[icnt, :] = minor_limits_gpt[igas, :]
+			kminor_start_red[icnt]        = kminor_start[igas] - n_elim
+			for ij in range(0, ng):
+				kminor_red[:, :, kminor_start_red[icnt]+ij-1] = \
+					kminor[:, :, kminor_start[igas]+ij-1]
+		else:
+			n_elim = n_elim + ng
+	return [minor_gases_red, scaling_gas_red, minor_scales_with_density_red, \
+		scale_by_complement_red, kminor_start_red, minor_limits_gpt_red, \
+		kminor_red];
 
 ##########################################################################################
 ##########################################################################################	
@@ -355,86 +347,88 @@ def load_kdist(ffi, file_kdist, gases, print_info, output_ctypes):
 		#
 		##################################################################################
 		kdistOUT = {}
+		# Data used by both the longwave and shortwave schemes.
 		c_var_dict = [{"name":"ngas_req",               "ctype":"int",    "init":ngas_req},\
-			      {"name":"ntempref",               "ctype":"int",    "init":ntemp},   \
-			      {"name":"nmixfrac",               "ctype":"int",    "init":nmixfrac},   \
-			      {"name":"nmajorabs",              "ctype":"int",    "init":nmajorabs},   \
-			      {"name":"nminorabs",              "ctype":"int",    "init":nminorabs},   \
-			      {"name":"npressref",              "ctype":"int",    "init":npressref},   \
-			      {"name":"npressiref",             "ctype":"int",    "init":npressiref},   \
-			      {"name":"ngpt",                   "ctype":"int",    "init":ngpt},   \
-			      {"name":"nband",                  "ctype":"int",    "init":nband},   \
-			      {"name":"natmlayer",              "ctype":"int",    "init":natmlayer},   \
-			      {"name":"npair",                  "ctype":"int",    "init":npair},   \
-			      {"name":"nabsorber_ext",          "ctype":"int",    "init":nabsorber_ext},   \
-			      {"name":"nflavors",               "ctype":"int",    "init":nunique_flavors},   \
-			      {"name":"idx_h2o",                "ctype":"int",    "init":idx_h2o},   \
-			      {"name":"press_ref_trop",         "ctype":"double", "init":kdist.press_ref_trop.values},   \
-			      {"name":"press_ref_trop_log",     "ctype":"double", "init":np.log(kdist.press_ref_trop).values},   \
-			      {"name":"temp_ref_min",           "ctype":"double", "init":temp_ref_min},   \
-			      {"name":"temp_ref_max",           "ctype":"double", "init":temp_ref_max},   \
-			      {"name":"press_ref_min",          "ctype":"double", "init":press_ref_min},   \
-			      {"name":"press_ref_max",          "ctype":"double", "init":press_ref_max},   \
-			      {"name":"press_ref_log_delta",    "ctype":"double", "init":press_ref_log_delta},   \
-			      {"name":"temp_ref_delta",         "ctype":"double", "init":temp_ref_delta},   \
-			      {"name":"ncontlower",             "ctype":"int",    "init":ncontlower_red},   \
-			      {"name":"ncontupper",             "ctype":"int",    "init":ncontupper_red},   \
-			      {"name":"nminorabslower",         "ctype":"int",    "init":nminorabslower_red},   \
-			      {"name":"nminorabsupper",         "ctype":"int",    "init":nminorabsupper_red},   \
-			      {"name":"kmajor",                 "ctype":"double", "dims":[ngpt,nmixfrac,npressiref,ntemp], \
-			       "init": np.reshape(kdist.kmajor.values,[ngpt,nmixfrac,npressiref,ntemp]).tolist()}, \
-			      {"name":"bnd_limits_gpt",         "ctype":"int",    "dims":[2,nband],    \
-			       "init": np.reshape(kdist.bnd_limits_gpt.values,[2,nband]).tolist()}, \
-			      {"name":"press_ref",              "ctype":"double", "dims":[npressref], \
-			       "init": kdist.press_ref.values.tolist()}, \
-			      {"name":"temp_ref",               "ctype":"double", "dims":[ntemp],     \
-			       "init": kdist.temp_ref.values.tolist()}, \
-			      {"name":"press_ref_log",          "ctype":"double", "dims":[npressref],  \
-			       "init": np.log(kdist.press_ref.values).tolist()}, \
-			      {"name":"gpt2band",               "ctype":"int",    "dims":[ngpt],       \
-			       "init": gpt2band.tolist()}, \
-			      {"name":"vmr_ref",                "ctype":"double", "dims":[natmlayer,ngas_req+1,ntemp],  \
-			       "init": vmr_ref_red.tolist()}, \
-			      {"name":"key_species",            "ctype":"int",    "dims":[npair,natmlayer,nband],       \
-			       "init": np.reshape(key_species_red,[npair,natmlayer,nband]).tolist()}, \
-			      {"name":"kminor_lower",           "ctype":"double", "dims":[ncontlower_red,nmixfrac,ntemp],  \
-			       "init": np.reshape(kminor_lower_red,[ncontlower_red,nmixfrac,ntemp]).tolist()}, \
-			      {"name":"kminor_upper",           "ctype":"double", "dims":[ncontupper_red,nmixfrac,ntemp],  \
-			       "init": np.reshape(kminor_upper_red,[ncontupper_red,nmixfrac,ntemp]).tolist()}, \
-			      {"name":"key_species_list",       "ctype":"int",    "dims":[npair,nband*2],       \
-			       "init": np.reshape(key_species_list,[npair,nband*2]).tolist()}, 	\
-			      {"name":"minor_limits_gpt_lower", "ctype":"int",    "dims":[2,nminorabslower_red],       \
+			      {"name":"ntempref",               "ctype":"int",    "init":ntemp},\
+			      {"name":"nmixfrac",               "ctype":"int",    "init":nmixfrac}, \
+			      {"name":"nmajorabs",              "ctype":"int",    "init":nmajorabs},\
+			      {"name":"nminorabs",              "ctype":"int",    "init":nminorabs},\
+			      {"name":"npressref",              "ctype":"int",    "init":npressref},\
+			      {"name":"npressiref",             "ctype":"int",    "init":npressiref},\
+			      {"name":"ngpt",                   "ctype":"int",    "init":ngpt},\
+			      {"name":"nband",                  "ctype":"int",    "init":nband},\
+			      {"name":"natmlayer",              "ctype":"int",    "init":natmlayer},\
+			      {"name":"npair",                  "ctype":"int",    "init":npair},\
+			      {"name":"nabsorber_ext",          "ctype":"int",    "init":nabsorber_ext},\
+			      {"name":"nflavors",               "ctype":"int",    "init":nunique_flavors},\
+			      {"name":"idx_h2o",                "ctype":"int",    "init":idx_h2o},\
+			      {"name":"press_ref_trop",         "ctype":"double", "init":kdist.press_ref_trop.values},\
+			      {"name":"press_ref_trop_log",     "ctype":"double", "init":np.log(kdist.press_ref_trop).values},\
+			      {"name":"temp_ref_min",           "ctype":"double", "init":temp_ref_min},\
+			      {"name":"temp_ref_max",           "ctype":"double", "init":temp_ref_max},\
+			      {"name":"press_ref_min",          "ctype":"double", "init":press_ref_min},\
+			      {"name":"press_ref_max",          "ctype":"double", "init":press_ref_max},\
+			      {"name":"press_ref_log_delta",    "ctype":"double", "init":press_ref_log_delta},\
+			      {"name":"temp_ref_delta",         "ctype":"double", "init":temp_ref_delta},\
+			      {"name":"ncontlower",             "ctype":"int",    "init":ncontlower_red},\
+			      {"name":"ncontupper",             "ctype":"int",    "init":ncontupper_red},\
+			      {"name":"nminorabslower",         "ctype":"int",    "init":nminorabslower_red},\
+			      {"name":"nminorabsupper",         "ctype":"int",    "init":nminorabsupper_red},\
+			      {"name":"kmajor",                 "ctype":"double", "dims":[ngpt,nmixfrac,npressiref,ntemp],\
+			       "init": np.reshape(kdist.kmajor.values,[ngpt,nmixfrac,npressiref,ntemp]).tolist()},\
+			      {"name":"bnd_limits_gpt",         "ctype":"int",    "dims":[2,nband],\
+			       "init": np.reshape(kdist.bnd_limits_gpt.values,[2,nband]).tolist()},\
+			      {"name":"press_ref",              "ctype":"double", "dims":[npressref],\
+			       "init": kdist.press_ref.values.tolist()},\
+			      {"name":"temp_ref",               "ctype":"double", "dims":[ntemp],\
+			       "init": kdist.temp_ref.values.tolist()},\
+			      {"name":"press_ref_log",          "ctype":"double", "dims":[npressref],\
+			       "init": np.log(kdist.press_ref.values).tolist()},\
+			      {"name":"gpt2band",               "ctype":"int",    "dims":[ngpt],\
+			       "init": gpt2band.tolist()},\
+			      {"name":"vmr_ref",                "ctype":"double", "dims":[natmlayer,ngas_req+1,ntemp],\
+			       "init": vmr_ref_red.tolist()},\
+			      {"name":"key_species",            "ctype":"int",    "dims":[npair,natmlayer,nband],\
+			       "init": np.reshape(key_species_red,[npair,natmlayer,nband]).tolist()},\
+			      {"name":"kminor_lower",           "ctype":"double", "dims":[ncontlower_red,nmixfrac,ntemp],\
+			       "init": np.reshape(kminor_lower_red,[ncontlower_red,nmixfrac,ntemp]).tolist()},\
+			      {"name":"kminor_upper",           "ctype":"double", "dims":[ncontupper_red,nmixfrac,ntemp],\
+			       "init": np.reshape(kminor_upper_red,[ncontupper_red,nmixfrac,ntemp]).tolist()},\
+			      {"name":"key_species_list",       "ctype":"int",    "dims":[npair,nband*2],\
+			       "init": np.reshape(key_species_list,[npair,nband*2]).tolist()},\
+			      {"name":"minor_limits_gpt_lower", "ctype":"int",    "dims":[2,nminorabslower_red],\
 			       "init": np.reshape(minor_limits_gpt_lower_red,[2,nminorabslower_red]).tolist()},\
-			      {"name":"minor_limits_gpt_upper", "ctype":"int",    "dims":[2,nminorabsupper_red],       \
+			      {"name":"minor_limits_gpt_upper", "ctype":"int",    "dims":[2,nminorabsupper_red],\
 			       "init": np.reshape(minor_limits_gpt_upper_red,[2,nminorabsupper_red]).tolist()},\
-			      {"name":"flavors",                "ctype":"int",    "dims":[2,nunique_flavors],       \
+			      {"name":"flavors",                "ctype":"int",    "dims":[2,nunique_flavors],\
 			       "init": flavor.tolist()},\
-			      {"name":"gpoint_flavor",          "ctype":"int",    "dims":[2,ngpt],       \
-			       "init": gpoint_flavor.tolist()}, \
-			      {"name":"kminor_start_lower",              "ctype":"int",    "dims":[nminorabslower_red],       \
-			       "init": kminor_start_lower_red.tolist()}, \
-			      {"name":"kminor_start_upper",              "ctype":"int",    "dims":[nminorabsupper_red],       \
-			       "init": kminor_start_upper_red.tolist()}, \
-			      {"name":"idx_minor_lower",                 "ctype":"int",    "dims":[nminorabslower_red],       \
-			       "init": idx_minor_lower.tolist()}, \
-			      {"name":"idx_minor_upper",                 "ctype":"int",    "dims":[nminorabsupper_red],       \
-                               "init": idx_minor_upper.tolist()}, \
-			      {"name":"idx_minor_scaling_lower",         "ctype":"int",    "dims":[nminorabslower_red],       \
-                               "init": idx_minor_scaling_lower.tolist()}, \
-			      {"name":"idx_minor_scaling_upper",         "ctype":"int",    "dims":[nminorabsupper_red],       \
-                               "init": idx_minor_scaling_upper.tolist()}, \
-			      {"name":"key_species_present_init",        "ctype":"int",    "dims":[nmajorabs],       \
-                               "init": key_species_present_init.tolist()}, \
-			      {"name":"minor_scales_with_density_lower", "ctype":"int",    "dims":[nminorabslower_red],       \
-                               "init": minor_scales_with_density_lower_red[:]}, \
-			      {"name":"minor_scales_with_density_upper", "ctype":"int",    "dims":[nminorabsupper_red],       \
-                               "init": minor_scales_with_density_upper_red[:]}, \
-			      {"name":"scale_by_complement_lower",       "ctype":"int",    "dims":[nminorabslower_red],       \
-                               "init": scale_by_complement_lower_red[:]}, \
-			      {"name":"scale_by_complement_upper",       "ctype":"int",    "dims":[nminorabsupper_red],       \
-			       "init": scale_by_complement_upper_red[:]}, \
-			      {"name":"is_key",                          "ctype":"int",    "dims":[ngas_req],       \
+			      {"name":"gpoint_flavor",          "ctype":"int",    "dims":[2,ngpt],\
+			       "init": gpoint_flavor.tolist()},\
+			      {"name":"kminor_start_lower",              "ctype":"int",    "dims":[nminorabslower_red],\
+			       "init": kminor_start_lower_red.tolist()},\
+			      {"name":"kminor_start_upper",              "ctype":"int",    "dims":[nminorabsupper_red],\
+			       "init": kminor_start_upper_red.tolist()},\
+			      {"name":"idx_minor_lower",                 "ctype":"int",    "dims":[nminorabslower_red],\
+			       "init": idx_minor_lower.tolist()},\
+			      {"name":"idx_minor_upper",                 "ctype":"int",    "dims":[nminorabsupper_red],\
+                               "init": idx_minor_upper.tolist()},\
+			      {"name":"idx_minor_scaling_lower",         "ctype":"int",    "dims":[nminorabslower_red],\
+                               "init": idx_minor_scaling_lower.tolist()},\
+			      {"name":"idx_minor_scaling_upper",         "ctype":"int",    "dims":[nminorabsupper_red],\
+                               "init": idx_minor_scaling_upper.tolist()},\
+			      {"name":"key_species_present_init",        "ctype":"int",    "dims":[nmajorabs],\
+                               "init": key_species_present_init.tolist()},\
+			      {"name":"minor_scales_with_density_lower", "ctype":"int",    "dims":[nminorabslower_red],\
+                               "init": minor_scales_with_density_lower_red[:]},\
+			      {"name":"minor_scales_with_density_upper", "ctype":"int",    "dims":[nminorabsupper_red],\
+                               "init": minor_scales_with_density_upper_red[:]},\
+			      {"name":"scale_by_complement_lower",       "ctype":"int",    "dims":[nminorabslower_red],\
+                               "init": scale_by_complement_lower_red[:]},\
+			      {"name":"scale_by_complement_upper",       "ctype":"int",    "dims":[nminorabsupper_red],\
+			       "init": scale_by_complement_upper_red[:]},\
+			      {"name":"is_key",                          "ctype":"int",    "dims":[ngas_req],\
 			       "init":is_key.tolist()}]
+		# Data only used by the RRTMGP longwave scheme
 		if (doLW):
 			ntemp_Planck  = kdist.temperature_Planck.size
 			nfit_coeffs   = kdist.optimal_angle_fit[0,:].size
@@ -442,37 +436,38 @@ def load_kdist(ffi, file_kdist, gases, print_info, output_ctypes):
 			#   Assumes that temperature minimum and max are the same for the absorption 
 			#   coefficient grid and the Planck grid and the Planck grid is equally spaced.
 			totplnk_delta = (temp_ref_max-temp_ref_min) / (kdist.temperature_Planck.size-1)			
-			c_varLW_dict =[{"name":"nfit_coeffs",       "ctype":"int",    "init": nfit_coeffs},                          \
-				       {"name":"ntemp_Planck",      "ctype":"int",    "init": ntemp_Planck},                         \
-				       {"name":"totplnk_delta",     "ctype":"double", "init": totplnk_delta},                        \
-				       {"name":"totplnk",           "ctype":"double", "dims":[ntemp_Planck,nband],                   \
-				        "init": np.reshape(kdist.totplnk.values,[ntemp_Planck,nband]).tolist()},                     \
-				       {"name":"planck_frac",       "ctype":"double", "dims":[ngpt,nmixfrac,npressiref,ntemp],       \
-				        "init": np.reshape(kdist.plank_fraction.values,[ngpt,nmixfrac,npressiref,ntemp]).tolist()},  \
-				       {"name":"optimal_angle_fit", "ctype":"double", "dims":[nfit_coeffs,nband],                    \
+			c_varLW_dict =[{"name":"nfit_coeffs",       "ctype":"int",    "init": nfit_coeffs},\
+				       {"name":"ntemp_Planck",      "ctype":"int",    "init": ntemp_Planck},\
+				       {"name":"totplnk_delta",     "ctype":"double", "init": totplnk_delta},\
+				       {"name":"totplnk",           "ctype":"double", "dims":[ntemp_Planck,nband],\
+				        "init": np.reshape(kdist.totplnk.values,[ntemp_Planck,nband]).tolist()},\
+				       {"name":"planck_frac",       "ctype":"double", "dims":[ngpt,nmixfrac,npressiref,ntemp],\
+				        "init": np.reshape(kdist.plank_fraction.values,[ngpt,nmixfrac,npressiref,ntemp]).tolist()},\
+				       {"name":"optimal_angle_fit", "ctype":"double", "dims":[nfit_coeffs,nband],\
 				        "init": np.reshape(kdist.optimal_angle_fit.values,[nfit_coeffs,nband]).tolist() }]
 			c_var_dict.extend(c_varLW_dict)
+		# Data only used by the RRTMGP shortwave scheme
 		if (doSW):
 			rayl = np.empty((ngpt,nmixfrac,ntemp,2),dtype=np.double)
 			rayl[:,:,:,0] =  np.reshape(kdist.rayl_lower.values,[ngpt,nmixfrac,ntemp])
 			rayl[:,:,:,1] =  np.reshape(kdist.rayl_upper.values,[ngpt,nmixfrac,ntemp])
-			c_varSW_dict = [{"name":"absorption_coefficient_ref_P", "ctype":"double", \
-					 "init": kdist.absorption_coefficient_ref_P.values}, \
-					{"name":"absorption_coefficient_ref_T", "ctype":"double", \
-					 "init": kdist.absorption_coefficient_ref_T.values}, \
-					{"name":"tsi_default",                  "ctype":"double", \
-					 "init": kdist.tsi_default.values},                   \
-					{"name":"mg_default",                   "ctype":"double", \
-					 "init": kdist.mg_default.values},                   \
-					{"name":"sb_default",                   "ctype":"double", \
-					 "init": kdist.sb_default.values},                   \
-					{"name":"krayl",                        "ctype":"double", "dims":[ngpt,nmixfrac,ntemp,2], \
-					 "init":rayl.tolist()},                   \
-					{"name":"solar_source_facular",         "ctype":"double", "dims":[ngpt], \
-                                         "init": kdist.solar_source_facular.values.tolist()}, \
-					{"name":"solar_source_sunspot",         "ctype":"double", "dims":[ngpt], \
-                                         "init": kdist.solar_source_sunspot.values.tolist()}, \
-					{"name":"solar_source_quiet",           "ctype":"double", "dims":[ngpt], \
+			c_varSW_dict = [{"name":"absorption_coefficient_ref_P", "ctype":"double",\
+					 "init": kdist.absorption_coefficient_ref_P.values},\
+					{"name":"absorption_coefficient_ref_T", "ctype":"double",\
+					 "init": kdist.absorption_coefficient_ref_T.values},\
+					{"name":"tsi_default",                  "ctype":"double",\
+					 "init": kdist.tsi_default.values},\
+					{"name":"mg_default",                   "ctype":"double",\
+					 "init": kdist.mg_default.values},\
+					{"name":"sb_default",                   "ctype":"double",\
+					 "init": kdist.sb_default.values},\
+					{"name":"krayl",                        "ctype":"double", "dims":[ngpt,nmixfrac,ntemp,2],\
+					 "init":rayl.tolist()},\
+					{"name":"solar_source_facular",         "ctype":"double", "dims":[ngpt],\
+                                         "init": kdist.solar_source_facular.values.tolist()},\
+					{"name":"solar_source_sunspot",         "ctype":"double", "dims":[ngpt],\
+                                         "init": kdist.solar_source_sunspot.values.tolist()},\
+					{"name":"solar_source_quiet",           "ctype":"double", "dims":[ngpt],\
                                          "init": kdist.solar_source_quiet.values.tolist()}]
 			c_var_dict.extend(c_varSW_dict)
 
