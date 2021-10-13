@@ -9,7 +9,7 @@ import numpy as np
 from cffi import FFI
 from load_kdist import load_kdist
 import xarray as xr
-
+from read_rfmip import read_rfmip
 ##########################################################################################
 def construct_arg4_fficdef(info):
   # Constructs the CFFI-compatible arguments for ffi.cdef()
@@ -32,6 +32,12 @@ def construct_fficdef(kernel_name, args, return_type="void" ):
         fdef += "{}, ".format(construct_arg4_fficdef(a))
     # The last argument needs a closing paren+semicolon and no comma
     return(fdef + "{});".format(construct_arg4_fficdef(args[-1])) )
+
+def construct_ffinew(kernel_name, args, return_type="void" ):
+	fdef = '{} {}('.format(return_type, kernel_name)
+	for a in args[:-1]:
+		fdef += "{}, ".format(construct_arg4_fficdef(a))
+
 ##########################################################################################
 def get_col_dry(vmr_h2o, p_lev, latitude = None):
 	helmert1 = 9.80665
@@ -71,10 +77,10 @@ pi     = np.arccos(-1.)
 
 ##########################################################################################
 ##########################################################################################
-# Which gases to use?
-gases       = ["h2o",        "co2",              "o3",   "n2o",             "ch4",       "o2"]
-gases_rfmip = ["water_vapor","carbon_dioxide_GM","ozone","nitrous_oxide_GM","methane_GM","oxygen_GM"]
-ngas_req    = len(gases)
+# Which gases to use? Provide key for GP/forcing-dataset gasenames 
+# - "chemical_name" is used by RRTMGP k-distribution data files
+gases =  {"chemical_name":["h2o", "co2", "o3", "n2o", "ch4", "o2"]}
+ngas  = len(gases["chemical_name"])
 
 # Location of rte-rrtmgp 
 #rte_rrtmgp_dir = "/home/dswales/Projects/radiation-nn/rrtmgp-nn-training/rte-rrtmgp/"
@@ -95,9 +101,8 @@ lib = ffi.dlopen("libs/mo_gas_optics_kernels.so")
 
 # Load k-distribution files
 print_info = True
-output_to_ctypes = True
-kdistLW = load_kdist(ffi, file_kdistLW, gases, print_info, output_to_ctypes)
-kdistSW = load_kdist(ffi, file_kdistSW, gases, print_info, output_to_ctypes)
+kdistLW = load_kdist(ffi, file_kdistLW, gases["chemical_name"], print_info)
+kdistSW = load_kdist(ffi, file_kdistSW, gases["chemical_name"], print_info)
 
 # Dimensions (flat)
 ntemp          = kdistSW['ntempref'][0]
@@ -119,33 +124,25 @@ ncol = data_RFMIP.lon.size
 nlay = data_RFMIP.pres_layer[0,:].size
 nlev = data_RFMIP.pres_level[0,:].size
 
-#
-# This section prepares the RFMIP data for use by the rrtmgp-kernels.
-#
 # Assume only using single RFMIP experiment for the time being, will expand later.
 irfmip_expt = 0
-
+rfmip_data  = read_rfmip(conds_file,gases["chemical_name"],irfmip_expt)
+print(rfmip_data["pres_level"])
+print(ncol)
 # Create array of volume-mixing-ratios (vmr), populate with RFMIP data
-vmr = np.zeros((ncol, nlay, ngas_req), dtype=np.double)
-vmr[:,:,0] = data_RFMIP.water_vapor.values[irfmip_expt,:,:]
-vmr[:,:,1] = data_RFMIP.carbon_dioxide_GM.values[irfmip_expt]
-vmr[:,:,2] = data_RFMIP.ozone.values[irfmip_expt,:,:]
-vmr[:,:,3] = data_RFMIP.nitrous_oxide_GM.values[irfmip_expt]
-vmr[:,:,4] = data_RFMIP.methane_GM.values[irfmip_expt]
-vmr[:,:,5] = data_RFMIP.oxygen_GM.values[irfmip_expt]
+vmr = np.zeros((ncol, nlay, ngas), dtype=np.double)
+rfmip_data = read_rfmip(conds_file,gases["chemical_name"],irfmip_expt)
+for igas in range(0,ngas):
+  vmr[:,:,igas] = rfmip_data[gases["chemical_name"][igas]]
 
 # Compute dry air column amounts [molec/cm^2]
 col_dry = get_col_dry(vmr[:,:,0], data_RFMIP.pres_level.values, latitude=data_RFMIP.lat.values)
-
+#col_dry = get_col_dry(vmr[:,:,0], rfmip_data["pres_level"], latitude=rfmip_data["lat"])
 # Compute column gas amounts [molec/cm^2]
-col_gas = np.zeros((ncol, nlay, ngas_req+1), dtype=np.double)
+col_gas = np.zeros((ncol, nlay, ngas+1), dtype=np.double)
 col_gas[:,:,0] = col_dry
-col_gas[:,:,1] = vmr[:,:,0] * col_dry
-col_gas[:,:,2] = vmr[:,:,1] * col_dry
-col_gas[:,:,3] = vmr[:,:,2] * col_dry
-col_gas[:,:,4] = vmr[:,:,3] * col_dry
-col_gas[:,:,5] = vmr[:,:,4] * col_dry
-col_gas[:,:,6] = vmr[:,:,5] * col_dry
+for igas in range(1,ngas+1):
+  col_gas[:,:,igas] = vmr[:,:,igas-1] * col_dry
 
 # Convert to c-types for F90 interfacing. *Note* The K-distribution data is already cast 
 # into the appropriate types for the kernels.
@@ -157,7 +154,7 @@ c_play    = ffi.new("double ["+str(ncol)+" ]["+str(nlay)+"]",    \
                     data_RFMIP.pres_layer.values[0:ncol,:].tolist())
 c_tlay    = ffi.new("double ["+str(ncol)+" ]["+str(nlay)+"]",    \
                     data_RFMIP.temp_layer.values[irfmip_expt,0:ncol,:].tolist())
-c_col_gas = ffi.new("double ["+str(ncol)+" ]["+str(nlay)+"]["+str(ngas_req+1)+"]", \
+c_col_gas = ffi.new("double ["+str(ncol)+" ]["+str(nlay)+"]["+str(ngas+1)+"]", \
                     col_gas[0:ncol,:,:].tolist())
 c_col_dry = ffi.new("double ["+str(ncol)+" ]["+str(nlay)+"]", \
                     col_dry.tolist())
@@ -197,10 +194,10 @@ args_interpolation = \
          {"name":"temp_ref_min",                    "ctype":"double"},                                     \
          {"name":"temp_ref_delta",                  "ctype":"double"},                                     \
          {"name":"press_ref_trop_log",              "ctype":"double"},                                     \
-         {"name":"vmr_ref",                         "ctype":"double", "dims":[2, ngas_req+1, ntemp]},      \
+         {"name":"vmr_ref",                         "ctype":"double", "dims":[2, ngas+1, ntemp]},          \
          {"name":"play",                            "ctype":"double", "dims":[ncol, nlay]},                \
          {"name":"tlay",                            "ctype":"double", "dims":[ncol, nlay]},                \
-         {"name":"col_gas",                         "ctype":"double", "dims":[ncol, nlay, ngas_req+1]},    \
+         {"name":"col_gas",                         "ctype":"double", "dims":[ncol, nlay, ngas+1]},        \
          {"name":"jtemp",                           "ctype":"int",    "dims":[ncol, nlay]},                \
          {"name":"fmajor",                          "ctype":"double", "dims":[2, 2, 2, nflav, ncol, nlay]},\
          {"name":"fminor",                          "ctype":"double", "dims":[2, 2, nflav, ncol, nlay]},   \
@@ -246,7 +243,7 @@ args_compute_tau_absorption = \
          {"name":"fminor",                          "ctype":"double", "dims":[2, 2, nflav, ncol, nlay]},   \
          {"name":"play",                            "ctype":"double", "dims":[ncol, nlay]},                \
          {"name":"tlay",                            "ctype":"double", "dims":[ncol, nlay]},                \
-         {"name":"col_gas",                         "ctype":"double", "dims":[ncol, nlay, ngas_req+1]},    \
+         {"name":"col_gas",                         "ctype":"double", "dims":[ncol, nlay, ngas+1]},        \
          {"name":"jeta",                            "ctype":"int",    "dims":[2, nflav, ncol, nlay]},      \
          {"name":"jtemp",                           "ctype":"int",    "dims":[ncol, nlay]},                \
          {"name":"jpress",                          "ctype":"int",    "dims":[ncol, nlay]},                \
@@ -266,7 +263,7 @@ args_compute_tau_rayleigh = \
          {"name":"krayl",                           "ctype":"double", "dims":[ngpt,neta,ntemp,2]},         \
          {"name":"idx_h2o",                         "ctype":"int"},                                        \
          {"name":"col_dry",                         "ctype":"double", "dims":[ncol, nlay]},                \
-         {"name":"col_gas",                         "ctype":"double", "dims":[ncol, nlay, ngas_req+1]},    \
+         {"name":"col_gas",                         "ctype":"double", "dims":[ncol, nlay, ngas+1]},        \
          {"name":"fminor",                          "ctype":"double", "dims":[2, 2, nflav, ncol, nlay]},   \
          {"name":"jeta",                            "ctype":"int",    "dims":[2, nflav, ncol, nlay]},      \
          {"name":"tropo",                           "ctype":"int",    "dims":[ncol, nlay]},                \
@@ -296,7 +293,7 @@ ffi.cdef(construct_fficdef("interpolation",args_interpolation), override=True)
 lib.interpolation(                                                            \
         c_ncol,                                                               \
         c_nlay,                                                               \
-        kdistSW['ngas_req'],                                                  \
+        kdistSW['ngas'],                                                      \
 	kdistSW['nflavors'],                                                  \
         kdistSW['nmixfrac'],                                                  \
         kdistSW['npressref'],                                                 \
@@ -329,7 +326,7 @@ lib.compute_tau_absorption(                                                   \
 	c_nlay,                                                               \
 	kdistSW['nband'],                                                     \
 	kdistSW['ngpt'],                                                      \
-	kdistSW['ngas_req'],                                                  \
+	kdistSW['ngas'],                                                      \
 	kdistSW['nflavors'],                                                  \
 	kdistSW['nmixfrac'],                                                  \
 	kdistSW['npressref'],                                                 \
@@ -377,7 +374,7 @@ lib.compute_tau_rayleigh(                                                     \
 	c_nlay,                                                               \
 	kdistSW['nband'],                                                     \
 	kdistSW['ngpt'],                                                      \
-	kdistSW['ngas_req'],                                                  \
+	kdistSW['ngas'],                                                      \
 	kdistSW['nflavors'],                                                  \
 	kdistSW['nmixfrac'],                                                  \
 	kdistSW['npressref'],                                                 \

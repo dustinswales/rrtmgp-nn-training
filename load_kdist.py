@@ -76,7 +76,7 @@ def search_for_gases(gas1, gas2, limits_gpt):
 
 ##########################################################################################
 ##########################################################################################
-def load_kdist(ffi, file_kdist, gases, print_info, output_ctypes):
+def load_kdist(ffi, file_kdist, gases, print_info):
 
 		# Load k-distribution data
 		kdist = xr.open_dataset(file_kdist,concat_characters=True,decode_cf=True)		
@@ -87,7 +87,7 @@ def load_kdist(ffi, file_kdist, gases, print_info, output_ctypes):
 		doSW = 'rayl_lower'     in list(kdist.keys())
 
 		# Dimensions (flat)
-		ngas_req            = len(gases)
+		ngas                = len(gases)
 		nmixfrac            = kdist.mixing_fraction.size
 		ncontlower          = kdist.contributors_lower.size
 		ncontupper          = kdist.contributors_upper.size
@@ -120,7 +120,7 @@ def load_kdist(ffi, file_kdist, gases, print_info, output_ctypes):
 		if (print_info):
 			print("#################################################################################")
 			print("Dimensions (IN/full): ")
-			print("   ngas_req                     = ",ngas_req)
+			print("   ngas                         = ",ngas)
 			print("   ntemp                        = ",ntemp)
 			print("   nmixfrac                     = ",nmixfrac)
 			print("   npressref                    = ",npressref)
@@ -155,7 +155,7 @@ def load_kdist(ffi, file_kdist, gases, print_info, output_ctypes):
 		scaling_gas_lower = []
 		minor_gases_upper = []
 		scaling_gas_upper = []
-		for igas in range(0,ngas_req):
+		for igas in range(0,ngas):
 			requested_gases.append(gases[igas])
 		for igas in range(0,nmajorabs):
 			gas_names.append(kdist.gas_names.values[igas].decode())
@@ -189,7 +189,7 @@ def load_kdist(ffi, file_kdist, gases, print_info, output_ctypes):
 		# Reduce volume mixing ratios for reference atmosphere...
 		#  - Gas 0 is used in single-key species method, set to 1.0 (col_dry)
 		#
-		vmr_ref_red        = np.zeros((natmlayer,ngas_req+1,ntemp))
+		vmr_ref_red        = np.zeros((natmlayer,ngas+1,ntemp))
 		vmr_ref_red[:,0,:] = (np.reshape(kdist.vmr_ref[:,0,:].values,[natmlayer,ntemp])).tolist()
 		gas_count          = 0
 		for igas in range(0,nmajorabs):
@@ -332,7 +332,7 @@ def load_kdist(ffi, file_kdist, gases, print_info, output_ctypes):
 		#
 		# Which species are key in one or more bands?
 		#
-		is_key    = np.empty(ngas_req, dtype=bool)
+		is_key    = np.empty(ngas, dtype=bool)
 		is_key[:] = False
 		for iflav in range(0,nunique_flavors):
 			for iatm in range(0,natmlayer):
@@ -348,7 +348,7 @@ def load_kdist(ffi, file_kdist, gases, print_info, output_ctypes):
 		##################################################################################
 		kdistOUT = {}
 		# Data used by both the longwave and shortwave schemes.
-		c_var_dict = [{"name":"ngas_req",               "ctype":"int",    "init":ngas_req},\
+		c_var_dict = [{"name":"ngas",                   "ctype":"int",    "init":ngas},\
 			      {"name":"ntempref",               "ctype":"int",    "init":ntemp},\
 			      {"name":"nmixfrac",               "ctype":"int",    "init":nmixfrac}, \
 			      {"name":"nmajorabs",              "ctype":"int",    "init":nmajorabs},\
@@ -386,7 +386,7 @@ def load_kdist(ffi, file_kdist, gases, print_info, output_ctypes):
 			       "init": np.log(kdist.press_ref.values).tolist()},\
 			      {"name":"gpt2band",               "ctype":"int",    "dims":[ngpt],\
 			       "init": gpt2band.tolist()},\
-			      {"name":"vmr_ref",                "ctype":"double", "dims":[natmlayer,ngas_req+1,ntemp],\
+			      {"name":"vmr_ref",                "ctype":"double", "dims":[natmlayer,ngas+1,ntemp],\
 			       "init": vmr_ref_red.tolist()},\
 			      {"name":"key_species",            "ctype":"int",    "dims":[npair,natmlayer,nband],\
 			       "init": np.reshape(key_species_red,[npair,natmlayer,nband]).tolist()},\
@@ -426,7 +426,7 @@ def load_kdist(ffi, file_kdist, gases, print_info, output_ctypes):
                                "init": scale_by_complement_lower_red[:]},\
 			      {"name":"scale_by_complement_upper",       "ctype":"int",    "dims":[nminorabsupper_red],\
 			       "init": scale_by_complement_upper_red[:]},\
-			      {"name":"is_key",                          "ctype":"int",    "dims":[ngas_req],\
+			      {"name":"is_key",                          "ctype":"int",    "dims":[ngas],\
 			       "init":is_key.tolist()}]
 		# Data only used by the RRTMGP longwave scheme
 		if (doLW):
