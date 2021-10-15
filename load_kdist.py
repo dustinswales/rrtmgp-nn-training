@@ -69,9 +69,10 @@ def search_for_gases(gas1, gas2, limits_gpt):
 	for igas1 in range(0,len(gas1)):
 		for igas2 in range(0,len(gas2)):
 			if gas1[igas1].startswith(gas2[igas2].strip()):
-				gas_is_present[igas1] = True
-				ncontatm_red          = ncontatm_red + (limits_gpt[igas1,1]-limits_gpt[igas1,0]+1)
-				nminorabsatm_red      = nminorabsatm_red + 1
+				if len(gas1[igas1].strip()) == len(gas2[igas2].strip()) or "_" in gas1[igas1]:
+					gas_is_present[igas1] = True
+					ncontatm_red          = ncontatm_red + (limits_gpt[igas1,1]-limits_gpt[igas1,0]+1)
+					nminorabsatm_red      = nminorabsatm_red + 1
 	return [ncontatm_red, nminorabsatm_red, gas_is_present];
 
 ##########################################################################################
@@ -79,7 +80,7 @@ def search_for_gases(gas1, gas2, limits_gpt):
 def load_kdist(ffi, file_kdist, gases, print_info):
 
 		# Load k-distribution data
-		kdist = xr.open_dataset(file_kdist,concat_characters=True,decode_cf=True)		
+		kdist = xr.open_dataset(file_kdist,concat_characters=True,decode_cf=True)
 
 		# Longwave or Shortwave file?
 		kdist_keys = list(kdist.keys())
@@ -189,14 +190,13 @@ def load_kdist(ffi, file_kdist, gases, print_info):
 		# Reduce volume mixing ratios for reference atmosphere...
 		#  - Gas 0 is used in single-key species method, set to 1.0 (col_dry)
 		#
-		vmr_ref_red        = np.zeros((natmlayer,ngas+1,ntemp))
-		vmr_ref_red[:,0,:] = (np.reshape(kdist.vmr_ref[:,0,:].values,[natmlayer,ntemp])).tolist()
-		gas_count          = 0
+		vmr_ref_red = np.zeros((ntemp,ngas+1,natmlayer))
+		vmr_ref_red[:,0,:] = kdist.vmr_ref[:,0,:].values
+		gas_count   = 1
 		for igas in range(0,nmajorabs):
 			if (gas_names[igas].strip() in requested_gases):
+				vmr_ref_red[:,gas_count,:] = kdist.vmr_ref[:,igas+1,:].values
 				gas_count = gas_count + 1
-				vmr_ref_red[:,gas_count,:] = (np.reshape(kdist.vmr_ref[:,igas,:].values,[natmlayer,ntemp])).tolist()
-		
 		#
 		# Create gpoint-to-band indexing array
 		#
@@ -275,7 +275,6 @@ def load_kdist(ffi, file_kdist, gases, print_info):
 							key_species_present_init[ki] = False
 					else:
 						key_species_red[iband,iatm,ipair] = kdist.key_species.values[iband,iatm,ipair]
-
 		#
 		# Create "flavor" list. flavor is index into gas_names
 		#
@@ -313,21 +312,20 @@ def load_kdist(ffi, file_kdist, gases, print_info):
 				u1 = np.append(u1,key_species_list[iflav,0])
 				u2 = np.append(u2,key_species_list[iflav,1])
 				is_unique[iflav] = True		
-		flavor = np.stack((u1,u2))
+		flavor = np.stack((u1,u2),axis=-1)
 		nunique_flavors = np.sum(is_unique)		
 
 		#
 		# Create "gpoint flavor" list
 		#
-		gpoint_flavor = np.ones((natmlayer,ngpt),dtype=int)
+		gpoint_flavor = np.ones((ngpt,natmlayer),dtype=int)
 		for igpt in range(0,ngpt):
 			for iatm in range(0,natmlayer):
 				temparry = key_species_red[gpt2band[igpt]-1,iatm,:]
 				if (np.all(temparry==0)): temparry=[2,2] 
 				for iflav in range(0,nunique_flavors):
-					if (temparry[0] == flavor[0,iflav] and temparry[1] == flavor[1,iflav]):
-						gpoint_flavor[iatm,igpt] = iflav+1
-						break
+					if (temparry[0] == flavor[iflav,0] and temparry[1] == flavor[iflav,1]):
+						gpoint_flavor[igpt,iatm] = iflav+1
 
 		#
 		# Which species are key in one or more bands?
@@ -336,7 +334,7 @@ def load_kdist(ffi, file_kdist, gases, print_info):
 		is_key[:] = False
 		for iflav in range(0,nunique_flavors):
 			for iatm in range(0,natmlayer):
-				if (flavor[iatm,iflav] != 0): is_key[flavor[iatm,iflav]-1] = True
+				if (flavor[iflav,iatm] != 0): is_key[flavor[iflav,iatm]-1] = True
 				
 		# Store index into gas-array for water-vapor
 		idx_h2o = requested_gases.index("h2o")
@@ -374,10 +372,10 @@ def load_kdist(ffi, file_kdist, gases, print_info):
 			      {"name":"ncontupper",             "ctype":"int",    "init":ncontupper_red},\
 			      {"name":"nminorabslower",         "ctype":"int",    "init":nminorabslower_red},\
 			      {"name":"nminorabsupper",         "ctype":"int",    "init":nminorabsupper_red},\
-			      {"name":"kmajor",                 "ctype":"double", "dims":[ngpt,nmixfrac,npressiref,ntemp],\
-			       "init": np.reshape(kdist.kmajor.values,[ngpt,nmixfrac,npressiref,ntemp]).tolist()},\
-			      {"name":"bnd_limits_gpt",         "ctype":"int",    "dims":[2,nband],\
-			       "init": np.reshape(kdist.bnd_limits_gpt.values,[2,nband]).tolist()},\
+			      {"name":"kmajor",                 "ctype":"double", "dims":[ntemp,npressiref,nmixfrac,ngpt],\
+			       "init": kdist.kmajor.values.tolist()},\
+			      {"name":"bnd_limits_gpt",         "ctype":"int",    "dims":[nband,2],\
+			       "init": kdist.bnd_limits_gpt.values.tolist()},\
 			      {"name":"press_ref",              "ctype":"double", "dims":[npressref],\
 			       "init": kdist.press_ref.values.tolist()},\
 			      {"name":"temp_ref",               "ctype":"double", "dims":[ntemp],\
@@ -386,23 +384,23 @@ def load_kdist(ffi, file_kdist, gases, print_info):
 			       "init": np.log(kdist.press_ref.values).tolist()},\
 			      {"name":"gpt2band",               "ctype":"int",    "dims":[ngpt],\
 			       "init": gpt2band.tolist()},\
-			      {"name":"vmr_ref",                "ctype":"double", "dims":[natmlayer,ngas+1,ntemp],\
+			      {"name":"vmr_ref",                "ctype":"double", "dims":[ntemp,ngas+1,natmlayer],\
 			       "init": vmr_ref_red.tolist()},\
-			      {"name":"key_species",            "ctype":"int",    "dims":[npair,natmlayer,nband],\
-			       "init": np.reshape(key_species_red,[npair,natmlayer,nband]).tolist()},\
-			      {"name":"kminor_lower",           "ctype":"double", "dims":[ncontlower_red,nmixfrac,ntemp],\
-			       "init": np.reshape(kminor_lower_red,[ncontlower_red,nmixfrac,ntemp]).tolist()},\
-			      {"name":"kminor_upper",           "ctype":"double", "dims":[ncontupper_red,nmixfrac,ntemp],\
-			       "init": np.reshape(kminor_upper_red,[ncontupper_red,nmixfrac,ntemp]).tolist()},\
+			      {"name":"key_species",            "ctype":"int",    "dims":[nband,natmlayer,npair],\
+			       "init": key_species_red.tolist()},\
+			      {"name":"kminor_lower",           "ctype":"double", "dims":[ntemp, nmixfrac, ncontlower_red],\
+			       "init": kminor_lower_red.tolist()},\
+			      {"name":"kminor_upper",           "ctype":"double", "dims":[ntemp, nmixfrac, ncontupper_red],\
+			       "init": kminor_upper_red.tolist()},\
 			      {"name":"key_species_list",       "ctype":"int",    "dims":[npair,nband*2],\
 			       "init": np.reshape(key_species_list,[npair,nband*2]).tolist()},\
-			      {"name":"minor_limits_gpt_lower", "ctype":"int",    "dims":[2,nminorabslower_red],\
-			       "init": np.reshape(minor_limits_gpt_lower_red,[2,nminorabslower_red]).tolist()},\
-			      {"name":"minor_limits_gpt_upper", "ctype":"int",    "dims":[2,nminorabsupper_red],\
-			       "init": np.reshape(minor_limits_gpt_upper_red,[2,nminorabsupper_red]).tolist()},\
-			      {"name":"flavors",                "ctype":"int",    "dims":[2,nunique_flavors],\
+			      {"name":"minor_limits_gpt_lower", "ctype":"int",    "dims":[nminorabslower_red,2],\
+			       "init": minor_limits_gpt_lower_red.tolist()},\
+			      {"name":"minor_limits_gpt_upper", "ctype":"int",    "dims":[nminorabsupper_red,2],\
+			       "init": minor_limits_gpt_upper_red.tolist()},\
+			      {"name":"flavors",                "ctype":"int",    "dims":[nunique_flavors,2],\
 			       "init": flavor.tolist()},\
-			      {"name":"gpoint_flavor",          "ctype":"int",    "dims":[2,ngpt],\
+			      {"name":"gpoint_flavor",          "ctype":"int",    "dims":[ngpt,2],\
 			       "init": gpoint_flavor.tolist()},\
 			      {"name":"kminor_start_lower",              "ctype":"int",    "dims":[nminorabslower_red],\
 			       "init": kminor_start_lower_red.tolist()},\
@@ -448,9 +446,9 @@ def load_kdist(ffi, file_kdist, gases, print_info):
 			c_var_dict.extend(c_varLW_dict)
 		# Data only used by the RRTMGP shortwave scheme
 		if (doSW):
-			rayl = np.empty((ngpt,nmixfrac,ntemp,2),dtype=np.double)
-			rayl[:,:,:,0] =  np.reshape(kdist.rayl_lower.values,[ngpt,nmixfrac,ntemp])
-			rayl[:,:,:,1] =  np.reshape(kdist.rayl_upper.values,[ngpt,nmixfrac,ntemp])
+			rayl = np.empty((2,ntemp,nmixfrac,ngpt),dtype=np.double)
+			rayl[0,:,:,:] =  kdist.rayl_lower.values
+			rayl[1,:,:,:] =  kdist.rayl_upper.values
 			c_varSW_dict = [{"name":"absorption_coefficient_ref_P", "ctype":"double",\
 					 "init": kdist.absorption_coefficient_ref_P.values},\
 					{"name":"absorption_coefficient_ref_T", "ctype":"double",\
@@ -461,7 +459,7 @@ def load_kdist(ffi, file_kdist, gases, print_info):
 					 "init": kdist.mg_default.values},\
 					{"name":"sb_default",                   "ctype":"double",\
 					 "init": kdist.sb_default.values},\
-					{"name":"krayl",                        "ctype":"double", "dims":[ngpt,nmixfrac,ntemp,2],\
+					{"name":"krayl",                        "ctype":"double", "dims":[2,ntemp,nmixfrac,ngpt],\
 					 "init":rayl.tolist()},\
 					{"name":"solar_source_facular",         "ctype":"double", "dims":[ngpt],\
                                          "init": kdist.solar_source_facular.values.tolist()},\
