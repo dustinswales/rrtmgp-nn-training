@@ -38,7 +38,7 @@ def reduce_minor(nminorabs, nminorabs_red, ncont_red, ntemp, nmixfrac, gas_is_pr
 	scale_by_complement_red       = []
 	kminor_start_red              = np.zeros(nminorabs_red,                dtype=int)
 	minor_limits_gpt_red          = np.zeros((nminorabs_red, 2),           dtype=int)
-	kminor_red                    = np.zeros((ntemp, nmixfrac, ncont_red), dtype=np.double)
+	kminor_red                    = np.zeros((ncont_red, nmixfrac, ntemp), dtype=np.double)
 	icnt   = -1
 	n_elim = 0
 	for igas in range(0, nminorabs):
@@ -52,10 +52,12 @@ def reduce_minor(nminorabs, nminorabs_red, ncont_red, ntemp, nmixfrac, gas_is_pr
 			minor_limits_gpt_red[icnt, :] = minor_limits_gpt[igas, :]
 			kminor_start_red[icnt]        = kminor_start[igas] - n_elim
 			for ij in range(0, ng):
-				kminor_red[:, :, kminor_start_red[icnt]+ij-1] = \
-					kminor[:, :, kminor_start[igas]+ij-1]
+				for ik in range(0,nmixfrac):
+					kminor_red[kminor_start_red[icnt]+ij-1,ik,:] = \
+						kminor[:, ik, kminor_start[igas]+ij-1]
 		else:
 			n_elim = n_elim + ng
+
 	return [minor_gases_red, scaling_gas_red, minor_scales_with_density_red, \
 		scale_by_complement_red, kminor_start_red, minor_limits_gpt_red, \
 		kminor_red];
@@ -246,6 +248,16 @@ def load_kdist(ffi, file_kdist, gases, print_info):
 		kminor_upper_red                    = reduce_minor_upper[6]
 
 		#
+		# Reorder k-major
+		#
+		kmajor = np.reshape(kdist.kmajor.values,[ngpt,npressiref,nmixfrac,ntemp],order='C')
+		#kmajor = np.empty((ngpt,npressiref,nmixfrac,ntemp),dtype=np.double)
+		#for imxf in range(0,nmixfrac):
+		#	for iprs in range(0,npressiref):
+		#		for igpt in range(0,ngpt):
+		#			kmajor[igpt,iprs,imxf,:] = kdist.kmajor.values[:,iprs,imxf,igpt]
+
+		#
 		# Call create_idx_minor
 		#
 		idx_minor_lower = create_idx_minor(minor_gases_lower_red, requested_gases, identifier_minor, gas_minor) + 1
@@ -372,8 +384,8 @@ def load_kdist(ffi, file_kdist, gases, print_info):
 			      {"name":"ncontupper",             "ctype":"int",    "init":ncontupper_red},\
 			      {"name":"nminorabslower",         "ctype":"int",    "init":nminorabslower_red},\
 			      {"name":"nminorabsupper",         "ctype":"int",    "init":nminorabsupper_red},\
-			      {"name":"kmajor",                 "ctype":"double", "dims":[ntemp,npressiref,nmixfrac,ngpt],\
-			       "init": kdist.kmajor.values.tolist()},\
+			      {"name":"kmajor",                 "ctype":"double", "dims":[ngpt,npressiref,nmixfrac,ntemp],\
+			       "init": kmajor.tolist()},\
 			      {"name":"bnd_limits_gpt",         "ctype":"int",    "dims":[nband,2],\
 			       "init": kdist.bnd_limits_gpt.values.tolist()},\
 			      {"name":"press_ref",              "ctype":"double", "dims":[npressref],\
@@ -388,9 +400,9 @@ def load_kdist(ffi, file_kdist, gases, print_info):
 			       "init": vmr_ref_red.tolist()},\
 			      {"name":"key_species",            "ctype":"int",    "dims":[nband,natmlayer,npair],\
 			       "init": key_species_red.tolist()},\
-			      {"name":"kminor_lower",           "ctype":"double", "dims":[ntemp, nmixfrac, ncontlower_red],\
+			      {"name":"kminor_lower",           "ctype":"double", "dims":[ncontlower_red, nmixfrac, ntemp],\
 			       "init": kminor_lower_red.tolist()},\
-			      {"name":"kminor_upper",           "ctype":"double", "dims":[ntemp, nmixfrac, ncontupper_red],\
+			      {"name":"kminor_upper",           "ctype":"double", "dims":[ncontupper_red, nmixfrac, ntemp],\
 			       "init": kminor_upper_red.tolist()},\
 			      {"name":"key_species_list",       "ctype":"int",    "dims":[npair,nband*2],\
 			       "init": np.reshape(key_species_list,[npair,nband*2]).tolist()},\

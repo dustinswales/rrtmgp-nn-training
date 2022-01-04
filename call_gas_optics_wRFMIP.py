@@ -53,7 +53,7 @@ file_kdistLW   = rte_rrtmgp_dir + "rrtmgp/data/rrtmgp-data-lw-g256-2018-12-04.nc
 file_kdistSW   = rte_rrtmgp_dir + "rrtmgp/data/rrtmgp-data-sw-g224-2018-12-04.nc"
 
 # Download RFMIP profiles
-conds_file     = "/scratch2/BMC/ome/Dustin.Swales/radiation-nn/multiple_input4MIPs_radiation_RFMIP_UColorado-RFMIP-1-2_none.nc"
+conds_file     = "/scratch2/BMC/ome/Dustin.Swales/radiation-nn/data/multiple_input4MIPs_radiation_RFMIP_UColorado-RFMIP-1-2_none.nc"
 conds_url      = "http://aims3.llnl.gov/thredds/fileServer/user_pub_work/input4MIPs/CMIP6/RFMIP/UColorado/UColorado-RFMIP-1-2/" + \
                  "atmos/fx/multiple/none/v20190401/" + conds_file
 #conds_file     = "multiple_input4MIPs_radiation_RFMIP_UColorado-RFMIP-1-2_none.nc"
@@ -112,11 +112,11 @@ args_interpolation = \
          {"name":"tlay",                            "ctype":"double", "dims":[nlay, ncol]},                \
          {"name":"col_gas",                         "ctype":"double", "dims":[ngas+1, nlay, ncol]},        \
          {"name":"jtemp",                           "ctype":"int",    "dims":[nlay, ncol]},                \
-         {"name":"fmajor",                          "ctype":"double", "dims":[nlay, ncol, nflav, 2, 2, 2]},\
-         {"name":"fminor",                          "ctype":"double", "dims":[nlay, ncol, nflav, 2, 2]},   \
-         {"name":"col_mix",                         "ctype":"double", "dims":[nlay, ncol, nflav, 2]},      \
+         {"name":"fmajor",                          "ctype":"double", "dims":[nflav, nlay, ncol, 2, 2, 2]},\
+         {"name":"fminor",                          "ctype":"double", "dims":[nflav, nlay, ncol, 2, 2]},   \
+         {"name":"col_mix",                         "ctype":"double", "dims":[nflav, nlay, ncol, 2]},      \
          {"name":"tropo",                           "ctype":"int",    "dims":[nlay, ncol]},                \
-         {"name":"jeta",                            "ctype":"int",    "dims":[nlay, ncol, nflav, 2]},      \
+         {"name":"jeta",                            "ctype":"int",    "dims":[nflav, nlay, ncol, 2]},      \
          {"name":"jpress",                          "ctype":"int",    "dims":[nlay, ncol]}]
 args_compute_tau_absorption = \
         [{"name":"ncol",                            "ctype":"int"},                                        \
@@ -135,9 +135,9 @@ args_compute_tau_absorption = \
          {"name":"idx_h2o",                         "ctype":"int"},                                        \
          {"name":"gpoint_flavor",                   "ctype":"int",    "dims":[ngpt, 2]},                   \
          {"name":"band_lims_gpt",                   "ctype":"int",    "dims":[nband, 2]},                  \
-         {"name":"kmajor",                          "ctype":"double", "dims":[ntemp, npres+1, neta, ngpt]},\
-         {"name":"kminor_lower",                    "ctype":"double", "dims":[ntemp,neta,ncontlower]},     \
-         {"name":"kminor_upper",                    "ctype":"double", "dims":[ntemp,neta,ncontupper]},     \
+         {"name":"kmajor",                          "ctype":"double", "dims":[ngpt, npres+1, neta, ntemp]},\
+         {"name":"kminor_lower",                    "ctype":"double", "dims":[ncontlower,neta,ntemp]},     \
+         {"name":"kminor_upper",                    "ctype":"double", "dims":[ncontupper,neta,ntemp]},     \
          {"name":"minor_limits_gpt_lower",          "ctype":"int",    "dims":[nminorabslower, 2]},         \
          {"name":"minor_limits_gpt_upper",          "ctype":"int",    "dims":[nminorabsupper, 2]},         \
          {"name":"minor_scales_with_density_lower", "ctype":"int",    "dims":[nminorabslower]},            \
@@ -151,13 +151,13 @@ args_compute_tau_absorption = \
          {"name":"kminor_start_lower",              "ctype":"int",    "dims":[nminorabslower]},            \
          {"name":"kminor_start_upper",              "ctype":"int",    "dims":[nminorabsupper]},            \
          {"name":"tropo",                           "ctype":"int",    "dims":[nlay, ncol]},                \
-         {"name":"col_mix",                         "ctype":"double", "dims":[nlay, ncol, nflav, 2]},      \
-         {"name":"fmajor",                          "ctype":"double", "dims":[nlay, ncol, nflav, 2, 2, 2]},\
-         {"name":"fminor",                          "ctype":"double", "dims":[nlay, ncol, nflav, 2, 2]},   \
+         {"name":"col_mix",                         "ctype":"double", "dims":[nflav, nlay, ncol, 2]},      \
+         {"name":"fmajor",                          "ctype":"double", "dims":[nflav, nlay, ncol, 2, 2, 2]},\
+         {"name":"fminor",                          "ctype":"double", "dims":[nflav, nlay, ncol, 2, 2]},   \
          {"name":"play",                            "ctype":"double", "dims":[nlay, ncol]},                \
          {"name":"tlay",                            "ctype":"double", "dims":[nlay, ncol]},                \
          {"name":"col_gas",                         "ctype":"double", "dims":[ngas+1, nlay, ncol]},        \
-         {"name":"jeta",                            "ctype":"int",    "dims":[nlay, ncol, nflav, 2]},      \
+         {"name":"jeta",                            "ctype":"int",    "dims":[nflav, nlay, ncol, 2]},      \
          {"name":"jtemp",                           "ctype":"int",    "dims":[nlay, ncol]},                \
          {"name":"jpress",                          "ctype":"int",    "dims":[nlay, ncol]},                \
          {"name":"tau",                             "ctype":"double", "dims":[ncol,nlay,ngpt]}]
@@ -177,20 +177,20 @@ args_compute_tau_rayleigh = \
          {"name":"idx_h2o",                         "ctype":"int"},                                        \
          {"name":"col_dry",                         "ctype":"double", "dims":[nlay, ncol]},                \
          {"name":"col_gas",                         "ctype":"double", "dims":[ngas+1, nlay, ncol]},        \
-         {"name":"fminor",                          "ctype":"double", "dims":[nlay, ncol, nflav, 2, 2]},   \
-         {"name":"jeta",                            "ctype":"int",    "dims":[nlay, ncol, nflav, 2]},      \
+         {"name":"fminor",                          "ctype":"double", "dims":[nflav, nlay, ncol, 2, 2]},   \
+         {"name":"jeta",                            "ctype":"int",    "dims":[nflav, nlay, ncol, 2]},      \
          {"name":"tropo",                           "ctype":"int",    "dims":[nlay, ncol]},                \
          {"name":"jtemp",                           "ctype":"int",    "dims":[nlay, ncol]},                \
          {"name":"tau_rayleigh",                    "ctype":"double", "dims":[ncol, nlay, ngpt]}]
-args_combine_and_reorder_2str = \
-        [{"name":"ncol",                            "ctype":"int"},                                        \
-         {"name":"nlay",                            "ctype":"int"},                                        \
-         {"name":"ngpt",                            "ctype":"int"},                                        \
-         {"name":"tau_abs",                         "ctype":"double", "dims":[ncol,nlay,ngpt]},            \
-         {"name":"tau_rayleigh",                    "ctype":"double", "dims":[ncol,nlay,ngpt]},            \
-         {"name":"tau",                             "ctype":"double", "dims":[ngpt,nlay,ncol]},            \
-         {"name":"ssa",                             "ctype":"double", "dims":[ngpt,nlay,ncol]},            \
-         {"name":"g",                               "ctype":"double", "dims":[ngpt,nlay,ncol]}]
+#args_combine_and_reorder_2str = \
+#        [{"name":"ncol",                            "ctype":"int"},                                        \
+#         {"name":"nlay",                            "ctype":"int"},                                        \
+#         {"name":"ngpt",                            "ctype":"int"},                                        \
+#         {"name":"tau_abs",                         "ctype":"double", "dims":[ncol,nlay,ngpt]},            \
+#         {"name":"tau_rayleigh",                    "ctype":"double", "dims":[ncol,nlay,ngpt]},            \
+#         {"name":"tau",                             "ctype":"double", "dims":[ngpt,nlay,ncol]},            \
+#         {"name":"ssa",                             "ctype":"double", "dims":[ngpt,nlay,ncol]},            \
+#         {"name":"g",                               "ctype":"double", "dims":[ngpt,nlay,ncol]}]
 
 ##########################################################################################
 #
@@ -201,13 +201,13 @@ args_combine_and_reorder_2str = \
 #
 # Interpolation
 #
-c_jtemp       = ffi.new("int ["   +str(nlay)+"]["+str(ncol)+"]")
-c_jpress      = ffi.new("int ["   +str(nlay)+"]["+str(ncol)+"]")
-c_tropo       = ffi.new("int ["   +str(nlay)+"]["+str(ncol)+"]")
-c_jeta        = ffi.new("int ["   +str(nlay)+"]["+str(ncol)+"]["+str(nflav)+"][2]")
-c_col_mix     = ffi.new("double ["+str(nlay)+"]["+str(ncol)+"]["+str(nflav)+"][2]")
-c_fmajor      = ffi.new("double ["+str(nlay)+"]["+str(ncol)+"]["+str(nflav)+"][2][2][2]")
-c_fminor      = ffi.new("double ["+str(nlay)+"]["+str(ncol)+"]["+str(nflav)+"][2][2]")
+c_jtemp       = ffi.new("int ["   +str(nlay) +"]["+str(ncol)+"]")
+c_jpress      = ffi.new("int ["   +str(nlay) +"]["+str(ncol)+"]")
+c_tropo       = ffi.new("int ["   +str(nlay) +"]["+str(ncol)+"]")
+c_jeta        = ffi.new("int ["   +str(nflav)+"]["+str(nlay)+"]["+str(ncol)+"][2]")
+c_col_mix     = ffi.new("double ["+str(nflav)+"]["+str(nlay)+"]["+str(ncol)+"][2]")
+c_fmajor      = ffi.new("double ["+str(nflav)+"]["+str(nlay)+"]["+str(ncol)+"][2][2][2]")
+c_fminor      = ffi.new("double ["+str(nflav)+"]["+str(nlay)+"]["+str(ncol)+"][2][2]")
 ffi.cdef(construct_fficdef("interpolation",args_interpolation), override=True)
 lib.interpolation(                                                            \
         rfmip_data["ncol"],                                                   \
@@ -315,17 +315,17 @@ lib.compute_tau_rayleigh(                                                     \
 #
 # Combine_and_reorder
 #
-c_tau         = ffi.new("double ["+str(ngpt)+"]["+str(nlay)+"]["+str(ncol)+"]")
-c_ssa         = ffi.new("double ["+str(ngpt)+"]["+str(nlay)+"]["+str(ncol)+"]")
-c_g           = ffi.new("double ["+str(ngpt)+"]["+str(nlay)+"]["+str(ncol)+"]")
-ffi.cdef(construct_fficdef("combine_and_reorder_2str",args_combine_and_reorder_2str), override=True)
-lib.combine_and_reorder_2str(                                                 \
-        rfmip_data["ncol"],                                                   \
-        rfmip_data["nlay"],                                                   \
-        kdistSW['ngpt'],                                                      \
-        c_tau_sw,                                                             \
-        c_tau_sw_rayl,                                                        \
-        c_tau, c_ssa, c_g)
+#c_tau         = ffi.new("double ["+str(ngpt)+"]["+str(nlay)+"]["+str(ncol)+"]")
+#c_ssa         = ffi.new("double ["+str(ngpt)+"]["+str(nlay)+"]["+str(ncol)+"]")
+#c_g           = ffi.new("double ["+str(ngpt)+"]["+str(nlay)+"]["+str(ncol)+"]")
+#ffi.cdef(construct_fficdef("combine_and_reorder_2str",args_combine_and_reorder_2str), override=True)
+#lib.combine_and_reorder_2str(                                                 \
+#        rfmip_data["ncol"],                                                   \
+#        rfmip_data["nlay"],                                                   \
+#        kdistSW['ngpt'],                                                      \
+#        c_tau_sw,                                                             \
+#        c_tau_sw_rayl,                                                        \
+#        c_tau, c_ssa, c_g)
 
 ##for ii in range(0,ncol):
 #ii=0
