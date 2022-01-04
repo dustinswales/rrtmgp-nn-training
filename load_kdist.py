@@ -20,10 +20,12 @@ def create_idx_minor(minor_gases_red, requested_gases, identifier_minor, gas_min
 ##########################################################################################
 ##########################################################################################
 def create_idx_minor_scaling(scaling_gas, requested_gases):
-	idx_minor_scaling = np.full(len(scaling_gas), -1, dtype=int)
+	idx_minor_scaling = np.empty(len(scaling_gas),  dtype=int)
 	for igas in range(0,len(scaling_gas)):
 		if scaling_gas[igas]:
-			idx_minor_scaling[igas] = requested_gases.index(scaling_gas[igas])
+			idx_minor_scaling[igas] = 1
+		else:
+			idx_minor_scaling[igas] = -1
 	return idx_minor_scaling
 
 ##########################################################################################
@@ -250,12 +252,12 @@ def load_kdist(ffi, file_kdist, gases, print_info):
 		#
 		# Reorder k-major
 		#
-		kmajor = np.reshape(kdist.kmajor.values,[ngpt,npressiref,nmixfrac,ntemp],order='C')
-		#kmajor = np.empty((ngpt,npressiref,nmixfrac,ntemp),dtype=np.double)
-		#for imxf in range(0,nmixfrac):
-		#	for iprs in range(0,npressiref):
-		#		for igpt in range(0,ngpt):
-		#			kmajor[igpt,iprs,imxf,:] = kdist.kmajor.values[:,iprs,imxf,igpt]
+		kmajor         = kdist.kmajor.values
+		kmajor_reorder = np.empty((ngpt,npressiref,nmixfrac,ntemp),dtype=np.double)
+		for imxf in range(0,nmixfrac):
+			for iprs in range(0,npressiref):
+				for igpt in range(0,ngpt):
+					kmajor_reorder[igpt,iprs,imxf,:] = kmajor[:,iprs,imxf,igpt]
 
 		#
 		# Call create_idx_minor
@@ -267,8 +269,8 @@ def load_kdist(ffi, file_kdist, gases, print_info):
 		# Call create_idx_minor_scaling
 		#
 
-		idx_minor_scaling_lower = create_idx_minor_scaling(scaling_gas_lower_red, requested_gases) + 1
-		idx_minor_scaling_upper = create_idx_minor_scaling(scaling_gas_upper_red, requested_gases) + 1
+		idx_minor_scaling_lower = create_idx_minor_scaling(scaling_gas_lower_red, requested_gases)
+		idx_minor_scaling_upper = create_idx_minor_scaling(scaling_gas_upper_red, requested_gases)
 
 		#
 		# Reduce "key_species"
@@ -385,7 +387,7 @@ def load_kdist(ffi, file_kdist, gases, print_info):
 			      {"name":"nminorabslower",         "ctype":"int",    "init":nminorabslower_red},\
 			      {"name":"nminorabsupper",         "ctype":"int",    "init":nminorabsupper_red},\
 			      {"name":"kmajor",                 "ctype":"double", "dims":[ngpt,npressiref,nmixfrac,ntemp],\
-			       "init": kmajor.tolist()},\
+			       "init": kmajor_reorder.tolist()},\
 			      {"name":"bnd_limits_gpt",         "ctype":"int",    "dims":[nband,2],\
 			       "init": kdist.bnd_limits_gpt.values.tolist()},\
 			      {"name":"press_ref",              "ctype":"double", "dims":[npressref],\
