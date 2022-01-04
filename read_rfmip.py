@@ -70,25 +70,30 @@ def read_rfmip(ffi, input_file, gases, irfmip_expt):
 			{"name":"hfc125_GM",               "chemical_name":"no2"}]
 
     	# Create array of volume-mixing-ratios
-	vmr = np.zeros((ncol, nlay, ngas), dtype=np.double)
+	vmr       = np.zeros((ncol, nlay, ngas), dtype=np.double)
 	gas_count = 0
-	for igas in range(0,len(RFMIP_gases)):
-		if (RFMIP_gases[igas]["chemical_name"] in gases):
-			if (np.ndim(data[RFMIP_gases[igas]["name"]]) == 3):
-				vmr[:,:,gas_count] = data[RFMIP_gases[igas]["name"]][irfmip_expt,:,:].values
-			if (np.ndim(data[RFMIP_gases[igas]["name"]]) == 1):
-				vmr[:,:,gas_count] = data[RFMIP_gases[igas]["name"]][irfmip_expt].values
-			gas_count = gas_count+1
+	gas_name  = np.empty((ngas),dtype='str')
+	for gas in RFMIP_gases:
+		if (gas["chemical_name"] in gases):
+			# Store output in same order as requested gas list
+			gas2gas = gases.index(gas["chemical_name"])
+			if (np.ndim(data[gas["name"]]) == 3):
+				vmr[:,:,gas2gas] = data[gas["name"]][irfmip_expt,:,:].values
+			if (np.ndim(data[gas["name"]]) == 1):
+				vmr[:,:,gas2gas] = data[gas["name"]][irfmip_expt].values
+			# Scale data
+			scale_factor = np.double(data[gas["name"]].attrs["units"])
+			vmr[:,:,gas2gas] = scale_factor*vmr[:,:,gas2gas]
 
     	# Compute column gas amounts [molec/cm^2]
 	col_gas = np.zeros((ngas+1, nlay, ncol), dtype=np.double)
 	col_dry = get_col_dry(vmr[:,:,gases.index("h2o")], data["pres_level"].values)
 	for icol in range(0,ncol):
 		col_gas[0,:,icol] = col_dry[icol,:]
-	for igas in range(0,ngas):
+	for igas in range(1,ngas):
 		for icol in range(0,ncol):
 			for ilay in range(0,nlay):
-				col_gas[igas+1,ilay,icol] = vmr[icol,ilay,igas] * col_dry[icol,ilay]
+				col_gas[igas,ilay,icol] = vmr[icol,ilay,igas-1] * col_dry[icol,ilay]
 
 	# Create output dictionary.
 	dataOUT = {}
