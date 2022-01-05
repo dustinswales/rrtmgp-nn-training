@@ -460,9 +460,14 @@ def load_kdist(ffi, file_kdist, gases, print_info):
 			c_var_dict.extend(c_varLW_dict)
 		# Data only used by the RRTMGP shortwave scheme
 		if (doSW):
-			rayl = np.empty((2,ntemp,nmixfrac,ngpt),dtype=np.double)
-			rayl[0,:,:,:] =  kdist.rayl_lower.values
-			rayl[1,:,:,:] =  kdist.rayl_upper.values
+			# Coefficients for SW Rayleigh scattering contributions (upper/lower)
+			rayl       = np.empty((2,ngpt,nmixfrac,ntemp),dtype=np.double)
+			rayl_lower = kdist.rayl_lower.values
+			rayl_upper = kdist.rayl_upper.values
+			for itemp in range(0,ntemp):
+				for ieta in range(0,nmixfrac):
+					rayl[0,:,ieta,itemp] = rayl_lower[itemp,ieta,:]
+					rayl[1,:,ieta,itemp] = rayl_upper[itemp,ieta,:]
 			c_varSW_dict = [{"name":"absorption_coefficient_ref_P", "ctype":"double",\
 					 "init": kdist.absorption_coefficient_ref_P.values},\
 					{"name":"absorption_coefficient_ref_T", "ctype":"double",\
@@ -473,7 +478,7 @@ def load_kdist(ffi, file_kdist, gases, print_info):
 					 "init": kdist.mg_default.values},\
 					{"name":"sb_default",                   "ctype":"double",\
 					 "init": kdist.sb_default.values},\
-					{"name":"krayl",                        "ctype":"double", "dims":[2,ntemp,nmixfrac,ngpt],\
+					{"name":"krayl",                        "ctype":"double", "dims":[2,ngpt,nmixfrac,ntemp],\
 					 "init":rayl.tolist()},\
 					{"name":"solar_source_facular",         "ctype":"double", "dims":[ngpt],\
                                          "init": kdist.solar_source_facular.values.tolist()},\

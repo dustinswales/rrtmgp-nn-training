@@ -173,7 +173,7 @@ args_compute_tau_rayleigh = \
          {"name":"ntemp",                           "ctype":"int"},                                        \
          {"name":"gpoint_flavor",                   "ctype":"int",    "dims":[ngpt, 2]},                   \
          {"name":"band_lims_gpt",                   "ctype":"int",    "dims":[nband, 2]},                  \
-         {"name":"krayl",                           "ctype":"double", "dims":[2,ntemp,neta,ngpt]},         \
+         {"name":"krayl",                           "ctype":"double", "dims":[2,ngpt,neta,ntemp]},         \
          {"name":"idx_h2o",                         "ctype":"int"},                                        \
          {"name":"col_dry",                         "ctype":"double", "dims":[nlay, ncol]},                \
          {"name":"col_gas",                         "ctype":"double", "dims":[ngas+1, nlay, ncol]},        \
