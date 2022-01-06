@@ -14,10 +14,8 @@ gases = ["h2o", "co2", "o3", "n2o", "co", "ch4", "o2", "n2", "ccl4", "cfc11", "c
          "cfc22", "hfc143a", "hfc125", "hfc23", "hfc32", "hfc134a", "cf4", "no2"]
 
 # Location of rte-rrtmgp k-distribution files
-rte_rrtmgp_dir = "/scratch2/BMC/ome/Dustin.Swales/radiation-nn/rte-rrtmgp/"
-file_kdistLW   = rte_rrtmgp_dir + "rrtmgp/data/rrtmgp-data-lw-g128-210809.nc"
-file_kdistSW   = rte_rrtmgp_dir + "rrtmgp/data/rrtmgp-data-sw-g112-210809.nc"
-
+file_kdistLW = "rte-rrtmgp/rrtmgp/data/rrtmgp-data-lw-g128-210809.nc"
+file_kdistSW = "rte-rrtmgp/rrtmgp/data/rrtmgp-data-sw-g112-210809.nc"
 
 # File containing RFMIP profiles
 conds_file  = "/scratch2/BMC/ome/Dustin.Swales/radiation-nn/data/multiple_input4MIPs_radiation_RFMIP_UColorado-RFMIP-1-2_none.nc"

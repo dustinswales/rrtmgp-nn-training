@@ -41,7 +41,7 @@ def construct_ffinew(kernel_name, args, return_type="void" ):
 def gas_optics_rrtmgp(kdist, p_lay, t_lay, col_gas, col_dry, do_twostream):
 	# Open RRTMGP library
 	ffi = FFI()
-	lib = ffi.dlopen("libs/mo_gas_optics_kernels.so")
+	lib = ffi.dlopen("rte-rrtmgp/build/mo_gas_optics_kernels.so")
 
 	# Dimensions
 	# Forcing data
