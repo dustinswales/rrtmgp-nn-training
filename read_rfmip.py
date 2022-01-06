@@ -100,4 +100,6 @@ def read_rfmip(input_file, gases, irfmip_expt):
 	dataOUT["col_dry"] = col_gas[:,:,0]
 	dataOUT["p_lay"]   = np.transpose(data["pres_layer"].values)
 	dataOUT["t_lay"]   = np.transpose(data["temp_layer"][irfmip_expt,0:ncol,:].values)
+	dataOUT["t_lev"]   = np.transpose(data["temp_level"][irfmip_expt,0:ncol,0:nlay].values)
+	dataOUT["t_sfc"]   = np.transpose(data["surface_temperature"][irfmip_expt,0:ncol].values)
 	return(dataOUT)

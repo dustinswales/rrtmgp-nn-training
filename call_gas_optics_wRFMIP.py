@@ -32,8 +32,8 @@ for irfmip_expt in range(0,nrfmip_expt):
 
 	# Call RRTMGP SW gas-optics.
 	optical_props_sw = gas_optics_rrtmgp(kdistSW, data["p_lay"], data["t_lay"],      \
-		data["col_gas"], data["col_dry"], do_twostream=True)
+		data["col_gas"], data["col_dry"], data["t_lev"], data["t_sfc"], do_twostream=True)
 
 	# Call RRTMGP LW gas-optics
 	optical_props_lw = gas_optics_rrtmgp(kdistLW, data["p_lay"], data["t_lay"],      \
-		data["col_gas"], data["col_dry"], do_twostream=False)
+		data["col_gas"], data["col_dry"], data["t_lev"], data["t_sfc"], do_twostream=False)

@@ -249,15 +249,19 @@ def load_kdist(file_kdist, gases, print_info):
 		kminor_upper_red                    = reduce_minor_upper[6]
 
 		#
-		# Reorder k-major
+		# Reorder k-major (And Planck fractions: LW only)
 		#
 		kmajor         = kdist.kmajor.values
 		kmajor_reorder = np.empty((ngpt,npressiref,nmixfrac,ntemp),dtype=np.double)
+		if doLW:
+			planck_frac         = kdist.plank_fraction.values
+			planck_frac_reorder = np.empty((ngpt,npressiref,nmixfrac,ntemp),dtype=np.double)
 		for imxf in range(0,nmixfrac):
 			for iprs in range(0,npressiref):
 				for igpt in range(0,ngpt):
 					kmajor_reorder[igpt,iprs,imxf,:] = kmajor[:,iprs,imxf,igpt]
-
+					if doLW: planck_frac_reorder[igpt,iprs,imxf,:] = \
+							planck_frac[:,iprs,imxf,igpt]
 		#
 		# Call create_idx_minor
 		#
@@ -450,10 +454,10 @@ def load_kdist(file_kdist, gases, print_info):
 			c_varLW_dict =[{"name":"nfit_coeffs",       "ctype":"int",    "init": nfit_coeffs},\
 				       {"name":"ntemp_Planck",      "ctype":"int",    "init": ntemp_Planck},\
 				       {"name":"totplnk_delta",     "ctype":"double", "init": totplnk_delta},\
-				       {"name":"totplnk",           "ctype":"double", "dims":[ntemp_Planck,nband],\
-				        "init": np.reshape(kdist.totplnk.values,[ntemp_Planck,nband]).tolist()},\
-				       {"name":"planck_frac",       "ctype":"double", "dims":[ngpt,nmixfrac,npressiref,ntemp],\
-				        "init": np.reshape(kdist.plank_fraction.values,[ngpt,nmixfrac,npressiref,ntemp]).tolist()},\
+				       {"name":"totplnk",           "ctype":"double", "dims":[nband,ntemp_Planck],\
+				        "init": kdist.totplnk.values.tolist()},\
+				       {"name":"planck_frac",       "ctype":"double", "dims":[ngpt,npressiref,nmixfrac,ntemp],\
+				        "init": planck_frac_reorder.tolist()},\
 				       {"name":"optimal_angle_fit", "ctype":"double", "dims":[nfit_coeffs,nband],\
 				        "init": np.reshape(kdist.optimal_angle_fit.values,[nfit_coeffs,nband]).tolist() }]
 			c_var_dict.extend(c_varLW_dict)
