@@ -38,7 +38,7 @@ def construct_ffinew(kernel_name, args, return_type="void" ):
 		fdef += "{}, ".format(construct_arg4_fficdef(a))
 
 ##########################################################################################
-def gas_optics_sw(kdistSW, p_lay, t_lay, col_gas, col_dry, do_twostream):
+def gas_optics_rrtmgp(kdist, p_lay, t_lay, col_gas, col_dry, do_twostream):
 	# Open RRTMGP library
 	ffi = FFI()
 	lib = ffi.dlopen("libs/mo_gas_optics_kernels.so")
@@ -49,16 +49,16 @@ def gas_optics_sw(kdistSW, p_lay, t_lay, col_gas, col_dry, do_twostream):
 	ncol           = len(t_lay[0,:])
 	nlay           = len(t_lay[:,0])
 	# K-distributuion
-	ntemp          = kdistSW['ntempref'][0]
-	npres          = kdistSW['npressref'][0]
-	nflav          = kdistSW['nflavors'][0]
-	ngpt           = kdistSW['ngpt'][0]
-	nband          = kdistSW['nband'][0]
-	neta           = kdistSW['nmixfrac'][0]
-	ncontlower     = kdistSW['ncontlower'][0]
-	ncontupper     = kdistSW['ncontupper'][0]
-	nminorabslower = kdistSW['nminorabslower'][0]
-	nminorabsupper = kdistSW['nminorabsupper'][0]
+	ntemp          = kdist['ntempref'][0]
+	npres          = kdist['npressref'][0]
+	nflav          = kdist['nflavors'][0]
+	ngpt           = kdist['ngpt'][0]
+	nband          = kdist['nband'][0]
+	neta           = kdist['nmixfrac'][0]
+	ncontlower     = kdist['ncontlower'][0]
+	ncontupper     = kdist['ncontupper'][0]
+	nminorabslower = kdist['nminorabslower'][0]
+	nminorabsupper = kdist['nminorabsupper'][0]
 
 	args_interpolation = \
         	[{"name":"ncol",                            "ctype":"int"},                                        \
@@ -181,19 +181,19 @@ def gas_optics_sw(kdistSW, p_lay, t_lay, col_gas, col_dry, do_twostream):
 	lib.interpolation(                                                            \
 	        c_ncol,                                                               \
         	c_nlay,                                                               \
-        	kdistSW['ngas'],                                                      \
-		kdistSW['nflavors'],                                                  \
-        	kdistSW['nmixfrac'],                                                  \
-        	kdistSW['npressref'],                                                 \
-		kdistSW['ntempref'],                                                  \
-        	kdistSW['flavors'],                                                   \
-        	kdistSW['press_ref_log'],                                             \
-		kdistSW['temp_ref'],                                                  \
-        	kdistSW['press_ref_log_delta'],                                       \
-        	kdistSW['temp_ref_min'],                                              \
-		kdistSW['temp_ref_delta'],                                            \
-        	kdistSW['press_ref_trop_log'],                                        \
-		kdistSW['vmr_ref'],                                                   \
+        	kdist['ngas'],                                                        \
+		kdist['nflavors'],                                                    \
+        	kdist['nmixfrac'],                                                    \
+        	kdist['npressref'],                                                   \
+		kdist['ntempref'],                                                    \
+        	kdist['flavors'],                                                     \
+        	kdist['press_ref_log'],                                               \
+		kdist['temp_ref'],                                                    \
+        	kdist['press_ref_log_delta'],                                         \
+        	kdist['temp_ref_min'],                                                \
+		kdist['temp_ref_delta'],                                              \
+        	kdist['press_ref_trop_log'],                                          \
+		kdist['vmr_ref'],                                                     \
         	c_play,                                                               \
         	c_tlay,                                                               \
         	c_col_gas,                                                            \
@@ -213,35 +213,35 @@ def gas_optics_sw(kdistSW, p_lay, t_lay, col_gas, col_dry, do_twostream):
 	lib.compute_tau_absorption(                                                   \
         	c_ncol,                                                               \
         	c_nlay,                                                               \
-		kdistSW['nband'],                                                     \
-		kdistSW['ngpt'],                                                      \
-		kdistSW['ngas'],                                                      \
-		kdistSW['nflavors'],                                                  \
-		kdistSW['nmixfrac'],                                                  \
-		kdistSW['npressref'],                                                 \
-		kdistSW['ntempref'],                                                  \
-		kdistSW['nminorabslower'],                                            \
-		kdistSW['ncontlower'],                                                \
-		kdistSW['nminorabsupper'],                                            \
-		kdistSW['ncontupper'],                                                \
-		kdistSW['idx_h2o'],                                                   \
-		kdistSW['gpoint_flavor'],                                             \
-		kdistSW['bnd_limits_gpt'],                                            \
-		kdistSW['kmajor'],                                                    \
-		kdistSW['kminor_lower'],                                              \
-		kdistSW['kminor_upper'],                                              \
-		kdistSW['minor_limits_gpt_lower'],                                    \
-		kdistSW['minor_limits_gpt_upper'],                                    \
-		kdistSW['minor_scales_with_density_lower'],                           \
-		kdistSW['minor_scales_with_density_upper'],                           \
-		kdistSW['scale_by_complement_lower'],                                 \
-		kdistSW['scale_by_complement_upper'],                                 \
-		kdistSW['idx_minor_lower'],                                           \
-		kdistSW['idx_minor_upper'],                                           \
-		kdistSW['idx_minor_scaling_lower'],                                   \
-		kdistSW['idx_minor_scaling_upper'],                                   \
-		kdistSW['kminor_start_lower'],                                        \
-		kdistSW['kminor_start_upper'],                                        \
+		kdist['nband'],                                                     \
+		kdist['ngpt'],                                                      \
+		kdist['ngas'],                                                      \
+		kdist['nflavors'],                                                  \
+		kdist['nmixfrac'],                                                  \
+		kdist['npressref'],                                                 \
+		kdist['ntempref'],                                                  \
+		kdist['nminorabslower'],                                            \
+		kdist['ncontlower'],                                                \
+		kdist['nminorabsupper'],                                            \
+		kdist['ncontupper'],                                                \
+		kdist['idx_h2o'],                                                   \
+		kdist['gpoint_flavor'],                                             \
+		kdist['bnd_limits_gpt'],                                            \
+		kdist['kmajor'],                                                    \
+		kdist['kminor_lower'],                                              \
+		kdist['kminor_upper'],                                              \
+		kdist['minor_limits_gpt_lower'],                                    \
+		kdist['minor_limits_gpt_upper'],                                    \
+		kdist['minor_scales_with_density_lower'],                           \
+		kdist['minor_scales_with_density_upper'],                           \
+		kdist['scale_by_complement_lower'],                                 \
+		kdist['scale_by_complement_upper'],                                 \
+		kdist['idx_minor_lower'],                                           \
+		kdist['idx_minor_upper'],                                           \
+		kdist['idx_minor_scaling_lower'],                                   \
+		kdist['idx_minor_scaling_upper'],                                   \
+		kdist['kminor_start_lower'],                                        \
+		kdist['kminor_start_upper'],                                        \
 		c_tropo,                                                              \
         	c_col_mix,                                                            \
         	c_fmajor,                                                             \
@@ -255,31 +255,34 @@ def gas_optics_sw(kdistSW, p_lay, t_lay, col_gas, col_dry, do_twostream):
         	c_tau_sw)
 
 	#
-	# Compute_tau_rayleigh
+	# Compute_tau_rayleigh (SW only)
 	#
-	c_tau_sw_rayl = ffi.new("double ["+str(ncol)+"]["+str(nlay)+"]["+str(ngpt)+"]")
-	ffi.cdef(construct_fficdef("compute_tau_rayleigh",args_compute_tau_rayleigh), override=True)
-	lib.compute_tau_rayleigh(                                                     \
-        	c_ncol,                                                               \
-        	c_nlay,                                                               \
-		kdistSW['nband'],                                                     \
-		kdistSW['ngpt'],                                                      \
-		kdistSW['ngas'],                                                      \
-		kdistSW['nflavors'],                                                  \
-		kdistSW['nmixfrac'],                                                  \
-		kdistSW['npressref'],                                                 \
-		kdistSW['ntempref'],                                                  \
-		kdistSW['gpoint_flavor'],                                             \
-		kdistSW['bnd_limits_gpt'],                                            \
-		kdistSW['krayl'],                                                     \
-		kdistSW['idx_h2o'],                                                   \
-		c_col_dry,                                                            \
-		c_col_gas,                                                            \
-		c_fminor,                                                             \
-		c_jeta,                                                               \
-		c_tropo,                                                              \
-		c_jtemp,                                                              \
-		c_tau_sw_rayl)
+	doSW = False
+	if "krayl" in kdist:
+		doSW = True
+		c_tau_sw_rayl = ffi.new("double ["+str(ncol)+"]["+str(nlay)+"]["+str(ngpt)+"]")
+		ffi.cdef(construct_fficdef("compute_tau_rayleigh",args_compute_tau_rayleigh), override=True)
+		lib.compute_tau_rayleigh(                                             \
+        		c_ncol,                                                       \
+        		c_nlay,                                                       \
+			kdist['nband'],                                               \
+			kdist['ngpt'],                                                \
+			kdist['ngas'],                                                \
+			kdist['nflavors'],                                            \
+			kdist['nmixfrac'],                                            \
+			kdist['npressref'],                                           \
+			kdist['ntempref'],                                            \
+			kdist['gpoint_flavor'],                                       \
+			kdist['bnd_limits_gpt'],                                      \
+			kdist['krayl'],                                               \
+			kdist['idx_h2o'],                                             \
+			c_col_dry,                                                    \
+			c_col_gas,                                                    \
+			c_fminor,                                                     \
+			c_jeta,                                                       \
+			c_tropo,                                                      \
+			c_jtemp,                                                      \
+			c_tau_sw_rayl)
 
 	#
 	# Combine optical depths from gas absorption and Rayleigh scattering
@@ -292,10 +295,13 @@ def gas_optics_sw(kdistSW, p_lay, t_lay, col_gas, col_dry, do_twostream):
 	for icol in range(0,ncol):
 		for ilay in range(0,nlay):
 			for igpt in range(0,ngpt):
-				tau[icol,ilay,igpt] = c_tau_sw[icol][ilay][igpt] + \
-						      c_tau_sw_rayl[icol][ilay][igpt]
+				if (doSW):
+					tau[icol,ilay,igpt] = c_tau_sw[icol][ilay][igpt] + \
+							      c_tau_sw_rayl[icol][ilay][igpt]
+				else:
+					tau[icol,ilay,igpt] = c_tau_sw[icol][ilay][igpt]
 				if (do_twostream):
-					if (tau[icol,ilay,igpt] > 0):
+					if (tau[icol,ilay,igpt] > 0 and doSW):
 						ssa[icol,ilay,igpt] = c_tau_sw_rayl[icol][ilay][igpt]/ \
 								      tau[icol,ilay,igpt]
 					else:
