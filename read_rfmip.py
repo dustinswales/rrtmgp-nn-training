@@ -36,12 +36,12 @@ def get_col_dry(vmr_h2o, p_lev, latitude = None):
         return col_dry
 
 ##########################################################################################
-def read_rfmip(ffi, input_file, gases, irfmip_expt):
+def read_rfmip(input_file, gases, irfmip_expt):
 	ngas = len(gases)
 
 	# Load data
 	data = xr.open_dataset(input_file,concat_characters=True,decode_cf=True)
-
+	print("Reading RFMIP data for: ",data["expt_label"].values[irfmip_expt])
 	ncol = data["lon"].size
 	nlay = data["pres_layer"][0,:].size
 	nlev = data["pres_level"][0,:].size
@@ -70,9 +70,7 @@ def read_rfmip(ffi, input_file, gases, irfmip_expt):
 			{"name":"hfc125_GM",               "chemical_name":"no2"}]
 
     	# Create array of volume-mixing-ratios
-	vmr       = np.zeros((ncol, nlay, ngas), dtype=np.double)
-	gas_count = 0
-	gas_name  = np.empty((ngas),dtype='str')
+	vmr = np.zeros((ncol, nlay, ngas), dtype=np.double)
 	for gas in RFMIP_gases:
 		if (gas["chemical_name"] in gases):
 			# Store output in same order as requested gas list
@@ -97,16 +95,8 @@ def read_rfmip(ffi, input_file, gases, irfmip_expt):
 
 	# Create output dictionary.
 	dataOUT = {}
-	dataOUT["ncol"] = ffi.new("int *", ncol)
-	dataOUT["nlay"] = ffi.new("int *", nlay)
-	dataOUT["nlev"] = ffi.new("int *", nlev)
-	dataOUT["play"] = ffi.new("double ["+str(nlay)+" ]["+str(ncol)+"]",    \
-		np.transpose(data["pres_layer"].values).tolist())
-	dataOUT["tlay"] = ffi.new("double ["+str(nlay)+" ]["+str(ncol)+"]",\
-		np.transpose(data["temp_layer"][irfmip_expt,0:ncol,:].values).tolist())
-	dataOUT["col_gas"] = ffi.new("double ["+str(ngas+1)+" ]["+str(nlay)+"]["+str(ncol)+"]", \
-		col_gas.tolist())
-	dataOUT["col_dry"] = ffi.new("double ["+str(nlay)+" ]["+str(ncol)+"]", \
-		col_gas[:,:,0].tolist())
-
+	dataOUT["col_gas"] = col_gas
+	dataOUT["col_dry"] = col_gas[:,:,0]
+	dataOUT["p_lay"]   = np.transpose(data["pres_layer"].values)
+	dataOUT["t_lay"]   = np.transpose(data["temp_layer"][irfmip_expt,0:ncol,:].values)
 	return(dataOUT)

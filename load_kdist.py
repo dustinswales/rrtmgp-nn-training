@@ -2,10 +2,9 @@
 #! /usr/bin/env python
 #
 ##########################################################################################
-import sys
-import os
 import numpy as np
 import xarray as xr
+from cffi import FFI
 
 ##########################################################################################
 ##########################################################################################
@@ -81,7 +80,7 @@ def search_for_gases(gas1, gas2, limits_gpt):
 
 ##########################################################################################
 ##########################################################################################
-def load_kdist(ffi, file_kdist, gases, print_info):
+def load_kdist(file_kdist, gases, print_info):
 
 		# Load k-distribution data
 		kdist = xr.open_dataset(file_kdist,concat_characters=True,decode_cf=True)
@@ -489,6 +488,7 @@ def load_kdist(ffi, file_kdist, gases, print_info):
 			c_var_dict.extend(c_varSW_dict)
 
 		# Define ctypes for k-distribution data.
+		ffi = FFI()
 		for ivars in range(0,len(c_var_dict)):
 			# Build first argument to ffi.new. (e.g. double [2][4] OR int *)
 			res =  c_var_dict[ivars]["ctype"]+" "
