@@ -42,7 +42,6 @@ def read_rfmip(input_file, gases, irfmip_expt):
 
 	# Load data
 	data = xr.open_dataset(input_file,concat_characters=True,decode_cf=True)
-	print("Reading RFMIP data for: ",data["expt_label"].values[irfmip_expt])
 	ncol = data["lon"].size
 	nlay = data["pres_layer"][0,:].size
 	nlev = data["pres_level"][0,:].size
@@ -102,4 +101,5 @@ def read_rfmip(input_file, gases, irfmip_expt):
 	dataOUT["t_lay"]   = np.transpose(data["temp_layer"][irfmip_expt,0:ncol,:].values)
 	dataOUT["t_lev"]   = np.transpose(data["temp_level"][irfmip_expt,0:ncol,0:nlay].values)
 	dataOUT["t_sfc"]   = np.transpose(data["surface_temperature"][irfmip_expt,0:ncol].values)
+	dataOUT["exp"]     = data["expt_label"].values[irfmip_expt]
 	return(dataOUT)
