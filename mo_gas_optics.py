@@ -257,7 +257,7 @@ def gas_optics_rrtmgp(kdist, p_lay, t_lay, col_gas, col_dry, t_lev, t_sfc, do_tw
 	#
 	# Compute_tau_absorption
 	#
-	c_tau_sw      = ffi.new("double ["+str(ngpt)+"]["+str(nlay)+"]["+str(ncol)+"]")
+	c_tau = ffi.new("double ["+str(ngpt)+"]["+str(nlay)+"]["+str(ncol)+"]")
 	ffi.cdef(construct_fficdef("compute_tau_absorption",args_compute_tau_absorption), override=True)
 	lib.compute_tau_absorption(                                                   \
         	c_ncol,                                                               \
@@ -301,12 +301,12 @@ def gas_optics_rrtmgp(kdist, p_lay, t_lay, col_gas, col_dry, t_lev, t_sfc, do_tw
         	c_jeta,                                                               \
         	c_jtemp,                                                              \
         	c_jpress,                                                             \
-        	c_tau_sw)
+		c_tau)
 
 	#
 	# Compute_tau_rayleigh (SW only)
 	#
-	if doSW:
+	if (doSW):
 		c_tau_sw_rayl = ffi.new("double ["+str(ngpt)+"]["+str(nlay)+"]["+str(ncol)+"]")
 		ffi.cdef(construct_fficdef("compute_tau_rayleigh",args_compute_tau_rayleigh), override=True)
 		lib.compute_tau_rayleigh(                                             \
@@ -334,12 +334,12 @@ def gas_optics_rrtmgp(kdist, p_lay, t_lay, col_gas, col_dry, t_lev, t_sfc, do_tw
 	#
 	# Compute Planck source functions (LW only)
 	#
-	if doLW:
-		c_sfc_src        = ffi.new("double ["+str(ngpt)+"]["+str(ncol)+"]")
-		c_lay_src        = ffi.new("double ["+str(ngpt)+"]["+str(nlay)+"]["+str(ncol)+"]")
-		c_lev_src_inc    = ffi.new("double ["+str(ngpt)+"]["+str(nlay)+"]["+str(ncol)+"]")
-		c_lev_src_dec    = ffi.new("double ["+str(ngpt)+"]["+str(nlay)+"]["+str(ncol)+"]")
-		c_sfc_source_Jac = ffi.new("double ["+str(ngpt)+"]["+str(ncol)+"]")
+	if (doLW):
+		c_sfc_src     = ffi.new("double ["+str(ngpt)+"]["+str(ncol)+"]")
+		c_lay_src     = ffi.new("double ["+str(ngpt)+"]["+str(nlay)+"]["+str(ncol)+"]")
+		c_lev_src_inc = ffi.new("double ["+str(ngpt)+"]["+str(nlay)+"]["+str(ncol)+"]")
+		c_lev_src_dec = ffi.new("double ["+str(ngpt)+"]["+str(nlay)+"]["+str(ncol)+"]")
+		c_sfc_src_Jac = ffi.new("double ["+str(ngpt)+"]["+str(ncol)+"]")
 		ffi.cdef(construct_fficdef("compute_Planck_source",args_compute_Planck_source), override=True)
 		lib.compute_Planck_source( \
 			c_ncol,                                                       \
@@ -371,13 +371,19 @@ def gas_optics_rrtmgp(kdist, p_lay, t_lay, col_gas, col_dry, t_lev, t_sfc, do_tw
 			c_lay_src,                                                    \
 			c_lev_src_inc,                                                \
 			c_lev_src_dec,                                                \
-			c_sfc_source_Jac)
+			c_sfc_src_Jac)
 
 	#
 	# Combine optical depths from gas absorption and Rayleigh scattering
 	# Also, convert c-types
 	#
 	tau = np.empty((ncol,nlay,ngpt),dtype=np.double)
+	if (doLW):
+		sfc_src     = np.empty((ncol,     ngpt),dtype=np.double)
+		lay_src     = np.zeros((ncol,nlay,ngpt),dtype=np.double)
+		lev_src_inc = np.zeros((ncol,nlay,ngpt),dtype=np.double)
+		lev_src_dec = np.zeros((ncol,nlay,ngpt),dtype=np.double)
+		sfc_src_Jac = np.zeros((ncol,     ngpt),dtype=np.double)
 	if (do_twostream):
 		ssa = np.empty((ncol,nlay,ngpt),dtype=np.double)
 		g   = np.zeros((ncol,nlay,ngpt),dtype=np.double)
@@ -385,10 +391,15 @@ def gas_optics_rrtmgp(kdist, p_lay, t_lay, col_gas, col_dry, t_lev, t_sfc, do_tw
 		for ilay in range(0,nlay):
 			for igpt in range(0,ngpt):
 				if (doSW):
-					tau[icol,ilay,igpt] = c_tau_sw[igpt][ilay][icol] + \
+					tau[icol,ilay,igpt] = c_tau[igpt][ilay][icol] + \
 							      c_tau_sw_rayl[igpt][ilay][icol]
 				else:
-					tau[icol,ilay,igpt] = c_tau_sw[igpt][ilay][icol]
+					tau[icol,ilay,igpt]         = c_tau[igpt][ilay][icol]
+					sfc_src[icol,igpt]          = c_sfc_src[igpt][icol]
+					sfc_src_Jac[icol,igpt]      = c_sfc_src_Jac[igpt][icol]
+					lay_src[icol,ilay,igpt]     = c_lay_src[igpt][ilay][icol]
+					lev_src_inc[icol,ilay,igpt] = c_lev_src_inc[igpt][ilay][icol]
+					lev_src_dec[icol,ilay,igpt] = c_lev_src_dec[igpt][ilay][icol]
 				if (do_twostream):
 					if (tau[icol,ilay,igpt] > 0 and doSW):
 						ssa[icol,ilay,igpt] = c_tau_sw_rayl[igpt][ilay][icol]/ \
@@ -403,5 +414,10 @@ def gas_optics_rrtmgp(kdist, p_lay, t_lay, col_gas, col_dry, t_lev, t_sfc, do_tw
 	if (do_twostream): 
 		dataOUT["ssa"] = ssa
 		dataOUT["g"]   = g
-
+	if (doLW):
+		dataOUT["sfc_src"]     = sfc_src
+		dataOUT["sfc_src_Jac"] = sfc_src_Jac
+		dataOUT["lay_src"]     = lay_src
+		dataOUT["lev_src_dec"] = lev_src_dec
+		dataOUT["lev_src_inc"] = lev_src_inc
 	return(dataOUT)

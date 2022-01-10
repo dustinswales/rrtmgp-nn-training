@@ -48,12 +48,20 @@ for irfmip_expt in range(0,nrfmip_expt):
 		init  = False
 		ncol  = len(data["t_lay"][0,:])
 		nlay  = len(data["t_lay"][:,0])
-		tauLW = np.empty((ncol,nlay,ngptLW,nrfmip_expt),dtype=np.double)
-		tauSW = np.empty((ncol,nlay,ngptSW,nrfmip_expt),dtype=np.double)
-		ssaSW = np.empty((ncol,nlay,ngptSW,nrfmip_expt),dtype=np.double)
-		gSW   = np.empty((ncol,nlay,ngptSW,nrfmip_expt),dtype=np.double)
-		play  = np.empty((ncol,nlay,nrfmip_expt),dtype=np.double)
-		tlay  = np.empty((ncol,nlay,nrfmip_expt),dtype=np.double)
+		#
+		tauLW       = np.empty((ncol,nlay,ngptLW,nrfmip_expt),dtype=np.double)
+		sfc_src     = np.empty((ncol,     ngptLW,nrfmip_expt),dtype=np.double)
+		sfc_src_Jac = np.empty((ncol,     ngptLW,nrfmip_expt),dtype=np.double)
+		lay_src     = np.empty((ncol,nlay,ngptLW,nrfmip_expt),dtype=np.double)
+		lev_src_inc = np.empty((ncol,nlay,ngptLW,nrfmip_expt),dtype=np.double)
+		lev_src_dec = np.empty((ncol,nlay,ngptLW,nrfmip_expt),dtype=np.double)
+		#
+		tauSW       = np.empty((ncol,nlay,ngptSW,nrfmip_expt),dtype=np.double)
+		ssaSW       = np.empty((ncol,nlay,ngptSW,nrfmip_expt),dtype=np.double)
+		gSW         = np.empty((ncol,nlay,ngptSW,nrfmip_expt),dtype=np.double)
+		#
+		play        = np.empty((ncol,nlay,nrfmip_expt),dtype=np.double)
+		tlay        = np.empty((ncol,nlay,nrfmip_expt),dtype=np.double)
 
 	# Call RRTMGP SW gas-optics.
 	print("   Calling RRTMGP SW kernels...")
@@ -67,19 +75,31 @@ for irfmip_expt in range(0,nrfmip_expt):
 	print("   Calling RRTMGP LW kernels...")
 	optical_props_lw = gas_optics_rrtmgp(kdistLW, data["p_lay"], data["t_lay"],      \
 		data["col_gas"], data["col_dry"], data["t_lev"], data["t_sfc"], do_twostream=False)
-	tauLW[:,:,:,irfmip_expt] = optical_props_lw['tau']
+	tauLW[:,:,:,irfmip_expt]       = optical_props_lw['tau']
+	sfc_src[:,:,irfmip_expt]       = optical_props_lw['sfc_src']
+	sfc_src_Jac[:,:,irfmip_expt]   = optical_props_lw['sfc_src_Jac']
+	lay_src[:,:,:,irfmip_expt]     = optical_props_lw['lay_src']
+	lev_src_inc[:,:,:,irfmip_expt] = optical_props_lw['lev_src_inc']
+	lev_src_dec[:,:,:,irfmip_expt] = optical_props_lw['lev_src_dec']
 
-	#
+	# Store RFMIP profiles
 	for icol in range(0,ncol):
 		play[icol,:,irfmip_expt] = data["p_lay"][:,0]
 		tlay[icol,:,irfmip_expt] = data["t_lay"][:,0]
+
 # Write to output
-tauLWout = xr.Dataset({"tau_lw": (("site", "layer", "gptLW", "exp"),tauLW)})
-tauSWout = xr.Dataset({"tau_sw": (("site", "layer", "gptSW", "exp"),tauSW)})
-ssaSWout = xr.Dataset({"ssa_sw": (("site", "layer", "gptSW", "exp"),ssaSW)})
-gSWout   = xr.Dataset({"g_sw":   (("site", "layer", "gptSW", "exp"),gSW)})
-expout   = xr.Dataset({"exp":    ((                          "exp"),exp)})
-playout  = xr.Dataset({"p_lay":  (("site", "layer",          "exp"),play)})
-tlayout  = xr.Dataset({"t_lay":  (("site", "layer",          "exp"),tlay)})
-xr.merge([playout,tlayout,expout,tauLWout,tauSWout,ssaSWout,gSWout]).to_netcdf(fileOUT)
+tauLWout       = xr.Dataset({"tau_lw":      (("site", "layer", "gptLW", "exp"),tauLW)})
+sfc_srcout     = xr.Dataset({"sfc_src":     (("site",          "gptLW", "exp"),sfc_src)})
+sfc_src_Jacout = xr.Dataset({"sfc_src_Jac": (("site",          "gptLW", "exp"),sfc_src_Jac)})
+lay_srcout     = xr.Dataset({"lay_src":     (("site", "layer", "gptLW", "exp"),lay_src)})
+lev_src_incout = xr.Dataset({"lev_src_inc": (("site", "layer", "gptLW", "exp"),lev_src_inc)})
+lev_src_decout = xr.Dataset({"lev_src_dec": (("site", "layer", "gptLW", "exp"),lev_src_dec)})
+tauSWout       = xr.Dataset({"tau_sw":      (("site", "layer", "gptSW", "exp"),tauSW)})
+ssaSWout       = xr.Dataset({"ssa_sw":      (("site", "layer", "gptSW", "exp"),ssaSW)})
+gSWout         = xr.Dataset({"g_sw":        (("site", "layer", "gptSW", "exp"),gSW)})
+expout         = xr.Dataset({"exp":         ((                          "exp"),exp)})
+playout        = xr.Dataset({"p_lay":       (("site", "layer",          "exp"),play)})
+tlayout        = xr.Dataset({"t_lay":       (("site", "layer",          "exp"),tlay)})
+xr.merge([playout,tlayout,expout,tauLWout,sfc_srcout,sfc_src_Jacout,lay_srcout,lev_src_incout,\
+	  lev_src_decout,tauSWout,ssaSWout,gSWout]).to_netcdf(fileOUT)
 
